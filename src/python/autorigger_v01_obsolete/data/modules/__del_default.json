@@ -1,0 +1,19 @@
+{
+    "name": "default_name",
+    "attributes":{
+        "objtype": "default",
+        "side": "center",
+        "tx": 0.0,
+        "ty": 0.0,
+        "tz": 0.0,
+        "inhook": [],
+        "outhook": [],
+        "size": 30,
+        "shape": "circle",
+        "fill_color": "white",
+        "outline_color": "white",
+        "stroke_width": 2,
+        "connection_color": "white",
+        "connection_strokesize": 2
+    }
+}

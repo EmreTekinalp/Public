@@ -1,0 +1,22 @@
+{
+    "transparent":  {
+        "inactive": [0, 0, 0, 0],
+        "active": [0, 0, 0, 0]
+    },
+    "white":  {
+        "inactive": [200, 200, 200, 255],
+        "active": [255, 255, 255, 255]
+    },
+    "black":  {
+        "inactive": [0, 0, 0, 255],
+        "active": [0, 0, 0, 255]
+    },
+    "orange_fill": {
+        "inactive": [200, 140, 90, 125],
+        "active": [255, 180, 150, 200]
+    },
+    "connection": {
+        "inactive": [0, 0, 0, 255],
+        "active": [0, 180, 0, 255]
+    }
+}

@@ -1,0 +1,25 @@
+/*QLabel{
+    background-color: red;
+    border-style: outset;
+    border-width: 2px;
+    border-radius: 10px;
+    border-color: beige;
+    font: bold 14px;
+    min-width: 10em;
+    padding: 6px;
+}
+QWidget{
+    background-color:#1c1c1c;
+}
+QToolButton{
+    background-color:#101010;
+    border:1px solid #2c2c2c;
+    border-radius: 2px 2px 2px 2px;
+    color:#F4A200;
+    padding:5px;
+}
+QToolButton:hover{
+    color:#ffc045;
+    background-color:#1c1c1c;
+}*/
+

@@ -1,0 +1,176 @@
+'''
+@author:  etekinalp
+@date:    Sep 7, 2014
+@mail:    e.tekinalp@icloud.com
+@brief:   This module creates pandoras box
+'''
+
+import os
+
+from PySide import QtGui
+from PySide import QtCore
+
+from maya import cmds
+from goe_ui.pandoras_box.contents import content
+reload(content)
+
+window_title  = "GOE PandorasBox"
+window_object = "goe_pandorasBox"
+dock_title = "PandorasBox"
+dock_object = window_object + "_dock"
+
+
+class PandorasBox(QtGui.QDialog):
+    def __init__(self, parent=content.get_maya_window()):
+        super(PandorasBox, self).__init__(parent)
+
+        #--- vars
+        self.project_path    = None
+        self.project_info    = list()
+        self.projects        = list()
+        self.types           = list()
+
+        self.current_project = None
+        self.current_type    = None
+        self.current_asset   = None
+        self.current_res     = None
+
+        #--- methods
+        self.__create()
+    #END __init__()
+
+    def __setup_ui(self):
+        self.setWindowTitle(window_title)
+        self.setObjectName(window_object)
+        self.setGeometry(600,300,450,750)
+        self.setMinimumWidth(460)
+        self.setMaximumWidth(475)
+        self.setWindowFlags(QtCore.Qt.Window)
+        self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+    #END __setup_ui()
+
+    def __create_labels(self):
+        icons_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'icons')
+        if not os.path.exists(icons_path):
+            raise Exception("Path does not exist: " + `icons_path`)
+        #--- header image
+        header_pic = QtGui.QPixmap(os.path.join(icons_path, "header.jpg"))
+        self.header_pic = QtGui.QLabel()
+        self.header_pic.setPixmap(header_pic)
+
+        #--- pandorasBox project path
+        self.project_settings_txt = QtGui.QLabel("Project Settings")
+        self.project_name_txt = QtGui.QLabel("Project Name:")
+        self.asset_type_txt = QtGui.QLabel("Asset Type:")
+        self.asset_name_txt = QtGui.QLabel("Asset Name:")
+        self.asset_res_txt = QtGui.QLabel("Asset Resolution:")radio1 = QtGui.QRadioButton("&Radio button 1")
+    #END __create_labels()
+
+    def __create_buttons(self):
+        self.create_btn = QtGui.QPushButton("Create")
+    #END __create_buttons()
+
+    def __create_group_box(self):
+        self.group_box = QtGui.QGroupBox('Project settings')
+        self.group_box.setFixedHeight(700)
+        gb = QtGui.QGroupBox('Guides')
+        vbox = QtGui.QVBoxLayout()
+        vbox.addWidget(gb)
+        self.group_box.setLayout(vbox)
+    #END __create_group_box()
+
+    def __create_combo_boxes(self):
+        #--- project name
+        self.project_name = ['...']
+        self.project_name_cbox = QtGui.QComboBox()
+        self.project_name_cbox.addItems(self.project_name)
+        self.project_name_cbox.setFixedSize(170,20)
+        self.project_name_cbox.setEditable(False)
+
+        #--- asset types
+        self.asset_types = []
+        self.asset_type_cbox = QtGui.QComboBox()
+        self.asset_type_cbox.addItems(self.asset_types)
+        self.asset_type_cbox.setFixedSize(170,20)
+        self.asset_type_cbox.setEditable(False)
+
+        #--- asset names
+        self.asset_names = []
+        self.asset_name_cbox = QtGui.QComboBox()
+        self.asset_name_cbox.addItems(self.asset_names)
+        self.asset_name_cbox.setFixedSize(170,20)
+        self.asset_name_cbox.setEditable(False)
+
+        #--- asset resolution
+        self.asset_res = ['Hi','Mid','Lo']
+        self.asset_res_cbox = QtGui.QComboBox()
+        self.asset_res_cbox.addItems(self.asset_res)
+        self.asset_res_cbox.setFixedSize(170,20)
+    #END __create_combo_box()
+
+    def __setup_layout(self):
+        #--- create layouts
+        vbox  = QtGui.QVBoxLayout()
+        vboxa = QtGui.QVBoxLayout()
+        hboxa = QtGui.QHBoxLayout()
+        hboxc = QtGui.QHBoxLayout()
+        hboxd = QtGui.QHBoxLayout()
+        hboxe = QtGui.QHBoxLayout()
+        hboxf = QtGui.QHBoxLayout()
+        hboxg = QtGui.QHBoxLayout()
+        hboxh = QtGui.QHBoxLayout()
+
+        #--- add widgets to layouts
+        vboxa.addWidget(self.header_pic)
+        vboxa.addWidget(self.group_box)
+        hboxh.addWidget(self.create_btn)
+
+        #--- add layouts and stretches
+        vbox.addLayout(hboxa)
+        vbox.addLayout(vboxa)
+        vbox.addLayout(hboxc)
+        vbox.addLayout(hboxd)
+        vbox.addLayout(hboxe)
+        vbox.addLayout(hboxf)
+        vbox.addLayout(hboxg)
+        vbox.addLayout(hboxh)
+
+        #--- set layout
+        self.setLayout(vbox)
+    #END __setup_layout
+
+    def __create(self):
+        #--- setup ui specifics
+        self.__setup_ui()
+
+        #--- create labels
+        self.__create_labels()
+
+        #--- create buttons
+        self.__create_buttons()
+
+        #--- create line edits
+        self.__create_group_box()
+
+        #--- create combo boxes
+        self.__create_combo_boxes()
+
+        #--- setup layout
+        self.__setup_layout()
+    #END __create()
+#END SetupManager()
+
+
+def main(*args, **kwargs):
+    if cmds.window(window_object, query=True, exists=True):
+        cmds.deleteUI(window_object)
+    if cmds.dockControl(dock_object, exists=True):
+        cmds.deleteUI(dock_object)
+
+    win = PandorasBox(content.get_maya_window())
+    win.show()
+
+#     cmds.dockControl(dock_object, area="right", allowedArea=["left", "right"], 
+#                      width=430, content=win.objectName(), label=dock_title)
+#END main()
+

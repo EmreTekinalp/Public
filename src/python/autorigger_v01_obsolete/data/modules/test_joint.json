@@ -1,0 +1,15 @@
+{
+    "moduletype": {
+        "data": "joint"
+        },
+    "name": {
+        "data": "test_joint"
+        },
+    "attributes": {
+        "data": {
+            "tx": {
+                "data": 50.0
+            }
+        }
+    }
+}

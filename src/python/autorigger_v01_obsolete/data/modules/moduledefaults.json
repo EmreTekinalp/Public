@@ -1,0 +1,22 @@
+{
+    "moduletype": {
+        "data": "rigmodule"
+        },
+    "name": {
+        "data": "a new default rigmodule"
+        },
+    "description": {
+        "data": "No description available",
+        "editable": false
+        },
+    "attributes": {
+        "data": {
+
+        }
+    },
+    "components": {
+        "data": {
+
+        }
+    }
+}

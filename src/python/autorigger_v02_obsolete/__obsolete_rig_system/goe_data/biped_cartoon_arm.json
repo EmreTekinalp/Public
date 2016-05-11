@@ -1,0 +1,213 @@
+{
+  "biped_cartoon_arm": [
+    {
+      "side": {
+        "default": "C", 
+        "value": [
+          "C", 
+          "L", 
+          "R"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "moduleName": {
+        "default": null, 
+        "value": null, 
+        "widget": "lineEdit"
+      }
+    }, 
+    {
+      "size": {
+        "default": 1.0, 
+        "value": 1.0, 
+        "widget": "double"
+      }
+    }, 
+    {
+      "shape": {
+        "default": 0, 
+        "value": 0, 
+        "widget": "int"
+      }
+    }, 
+    {
+      "orientation": {
+        "default": 0, 
+        "value": 0, 
+        "widget": "int"
+      }
+    }, 
+    {
+      "color": {
+        "default": 17, 
+        "value": 0, 
+        "widget": "int"
+      }
+    }, 
+    {
+      "offsets": {
+        "default": 0, 
+        "value": 0, 
+        "widget": "int"
+      }
+    }, 
+    {
+      "withGimbal": {
+        "default": "False", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "rotateOrder": {
+        "default": "xyz", 
+        "value": [
+          "xyz", 
+          "yzx", 
+          "zxy", 
+          "xzy", 
+          "yxz", 
+          "zyx"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "mirror": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "mirrorAxis": {
+        "default": "x", 
+        "value": [
+          "x", 
+          "y", 
+          "z"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "asymmetry": {
+        "default": "False", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "fk": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "ik": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "fkik": {
+        "default": "Blend", 
+        "value": [
+          "Blend", 
+          "Switch"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "addArmTwist": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "addIkStretch": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "addIkBend": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "addClavicle": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "addSoftClavicle": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "addScapula": {
+        "default": "True", 
+        "value": [
+          "False", 
+          "True"
+        ], 
+        "widget": "combobox"
+      }
+    }, 
+    {
+      "parentMethod": {
+        "default": "parent", 
+        "value": [
+          "parent", 
+          "constraint", 
+          "None"
+        ], 
+        "widget": "combobox"
+      }
+    }
+  ]
+}

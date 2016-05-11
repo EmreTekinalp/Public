@@ -1,0 +1,52 @@
+from abc import abstractmethod
+
+from olympus.rigging import base
+reload(base)
+
+
+class Fragment(base.RiggingInterface):
+
+    """A maya node setup that can't be used directly in rig.
+
+    It is designed to help standardize maya node setups and to compress
+    them into one command.
+    Fragments can be created to be instant, meaning that the node setup
+    is being created on class instantiation. This is for setups that
+    want to behave like a simple node. An example for this would be the
+    Control fragment.
+    """
+
+    instant = False
+
+    @abstractmethod
+    def create(self):
+        """Create the node setup."""
+        pass
+    # end def create
+
+    @property
+    def name(self):
+        """The name of the component.
+
+        @DONE The name is expanded by the name of the parent, if applicable,
+              to keep names unique.
+        @todo Take other measures to keep names unique, like adding
+              a counter
+        @return The name
+        """
+
+        if self.parent is not None and self._name is None:
+            return self.parent.name
+        elif self.parent is None and self._name is None:
+            return self.uid
+        else:
+            return self._name
+        # end if
+    # end def name
+
+    @name.setter
+    def name(self, name):
+        """Set the name of the component."""
+        self._name = name
+    # end def name
+# end class Fragment

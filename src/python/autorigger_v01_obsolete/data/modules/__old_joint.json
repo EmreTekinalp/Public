@@ -1,0 +1,46 @@
+{
+    "name": "joint",
+    "attributes":{
+        "tx": 0.0,
+        "ty": 0.0,
+        "tz": 0.0,
+        "side": {
+            "value": "center",
+            "attrtype": "enum"
+            },
+        "objtype": {
+            "value": "joint",
+            "editable": false,
+            "visible": false,
+            "attrtype": "enum"
+            },
+        "inhook": {
+            "value": [],
+            "editable": false
+            },
+        "outhook": {
+            "value": [],
+            "editable": false
+            },
+
+        "shape": {
+            "value": "circle",
+            "attrtype": "enum"
+            },
+        "size": 30,
+        "stroke_width": 2,
+        "connection_strokesize": 2,
+        "fill_color": {
+            "value": "white",
+            "attrtype": "enum"
+            },
+        "outline_color": {
+            "value": "white",
+            "attrtype": "enum"
+            },
+        "connection_color": {
+            "value": "white",
+            "attrtype": "enum"
+            }
+    }
+}

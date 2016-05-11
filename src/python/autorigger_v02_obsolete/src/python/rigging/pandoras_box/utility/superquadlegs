@@ -1,0 +1,190 @@
+import pymel.core as pm
+import numpy
+from maya import cmds
+from olympus.rigging.component import base
+from olympus.rigging.utility import blueprint, utils
+from olympus.rigging.fragment import control, node
+reload(blueprint)
+reload(control)
+reload(base)
+reload(utils)
+reload(node)
+from olympus.rigging.utility.blueprint import Blueprint
+from olympus.rigging.fragment.control import Control
+from olympus.rigging.fragment.node import node
+
+
+class QuadrupedLeg(base.ComponentInterface):
+
+    """A quadruped back leg component.
+
+    This class is using pymel instead of python as well it is making use of the
+    DropBox class, which should be used to store and retrieve any kind of data.
+    """
+
+    def __init__(self, name=None, side=None, parent=None):
+        """Initialize the QuadrupedBackLeg."""
+        super(QuadrupedLeg, self).__init__(None, name, parent, side)
+        # vars
+        node.parent = self
+        blueprint.parent = self
+        control.parent = self
+        self.bpr = utils.DropBox()
+        self.rig = utils.DropBox()
+    # end def __init__
+
+    def default_guide_data(self):
+        """Override abstractmethod default guide data."""
+        self.rig.position = list()
+        self.rig.rotation = list()
+        self.guide_data = {'position': [[-3.0, 4.0, 0.0],
+                                        [1.232050807568878, 0.0, 0],
+                                        [1.2307967845966394, 0, 0],
+                                        [1.0047378478476823, 0, 0]],
+                           'rotation': [[0.0, -17.808000080191718, 0.0],
+                                        [0.0, 58.31100925811385, 0.0],
+                                        [0.0, -60.00000000000001, 0.0],
+                                        [0.0, 0.0, 0.0]]}
+        for ctl, pos, rot in zip(self.bpr.leg.controls,
+                                 self.guide_data['position'],
+                                 self.guide_data['rotation']):
+            ctl.transform.t.set(pos)
+            ctl.transform.r.set(rot)
+            self.rig.position.append(ctl.position())
+            self.rig.rotation.append(ctl.rotation())
+        # end for iterate controls
+        return self.guide_data
+    # end def default_guide_data
+
+    def guide_setup(self):
+        """Create quadruped leg blueprint."""
+        self._create_blueprint_controls()
+        self._setup_support_blueprints()
+        self._setup_support_distance()
+        self._setup_support_orientation()
+        self._setup_support_annotation()
+    # end def guide_setup
+
+    def _create_blueprint_controls(self):
+        """Create blueprint controls."""
+        self.bpr.leg = Blueprint(size=0.3, amount=4, upaxis='x').chain(True)
+        self.bpr.support = Blueprint('Support', amount=2, size=0.1, upaxis='x')
+    # end def _create_blueprint_controls
+
+    def _setup_support_blueprints(self):
+        """Return the distance between the two given positions."""
+        pm.parent(self.bpr.support.controls[0].group,
+                  self.bpr.leg.controls[0].transform)
+        self.bpr.support.controls[0].group.t.set(0, 0, 0)
+    # end def _setup_support_blueprints
+
+    def _setup_support_distance(self):
+        """Return the support chain positions."""
+        db = node.distanceBetween(im1=self.bpr.leg.controls[0].transform.wm,
+                                  im2=self.bpr.leg.controls[1].transform.wm)
+        pmm = node.pointMatrixMult(im=self.bpr.leg.controls[-2].transform.wm)
+        mdl = node.multDoubleLinear(input1=db.distance, input2=-1)
+        if self.bpr.support.upaxis == 'x':
+            mdl.output >> pmm.ipx
+        elif self.bpr.support.upaxis == 'y':
+            mdl.output >> pmm.ipy
+        elif self.bpr.support.upaxis == 'z':
+            mdl.output >> pmm.ipz
+        # end if setup up axis
+        pmm.output >> self.bpr.support.controls[1].group.t
+    # end def _setup_support_distance
+
+    def _setup_support_orientation(self):
+        """Setup the orientation of the support controls."""
+        up = node.transform('Up')
+        pm.parent(up, self.bpr.leg.controls[0].transform)
+        if self.bpr.leg.upaxis == 'x':
+            up.t.set(0, 1, 0)
+        elif self.bpr.leg.upaxis == 'y':
+            up.t.set(0, 0, -1)
+        elif self.bpr.leg.upaxis == 'z':
+            up.t.set(1, 0, 0)
+        # end if set up vector position
+
+        # aim constraint the first support control
+        pm.aimConstraint(self.bpr.support.controls[1].transform,
+                         self.bpr.support.controls[0].transform,
+                         worldUpType='object', worldUpObject=up)
+        # orient constraint the second support control
+        pm.orientConstraint(self.bpr.leg.controls[-1].transform,
+                            self.bpr.support.controls[-1].transform)
+    # end def _setup_support_orientation
+
+    def _setup_support_annotation(self):
+        """Setup an annotation line along the support chain."""
+
+        def connect_annotation(root, leaf):
+            """Create and connect annotation shape properly."""
+            ano_shp = node.annotationShape(dagObjectMatrix=[leaf.shape.wm])
+            ano_trn = ano_shp.listRelatives(p=True)[0]
+            pm.parent(ano_trn, root.transform)
+            ano_trn.t.set(0, 0, 0)
+            ano_trn.r.set(0, 0, 0)
+        # end def _connect_annotation
+
+        connect_annotation(self.bpr.support.controls[0],
+                           self.bpr.support.controls[-1])
+        connect_annotation(self.bpr.support.controls[-1],
+                           self.bpr.leg.controls[-1])
+    # end def _setup_support_annotation
+
+    def puppet_setup(self):
+        """Create spine puppet."""
+        # create rig group object
+        self.rig.groups = utils.DropBox()
+        self._create_joints()
+        return
+        self._create_puppet_controls()
+        self._setup_puppet_controls()
+        self._add_attributes()
+        self._create_ribbon_setup()
+        self._create_volume_setup()
+        self._setup_global_scale()
+        self._delete_guides()
+    # end def puppet_setup
+
+    def  _create_joints(self):
+        """Create quadruped leg joints."""
+        self.rig.joints = list()
+        self.rig.support = list()
+        for pos, rot in zip(self.rig.position, self.rig.rotation):
+            jnt = node.joint(t=pos, jo=rot)
+            if self.rig.joints:
+                pm.parent(jnt, self.rig.joints[-1])
+            # end if parent joints
+            self.rig.joints.append(jnt)
+        # end for create joints
+        for ctl in self.bpr.support.controls + [self.bpr.leg.controls[-1]]:
+            jnt = node.joint('Support', t=ctl.position(), jo=ctl.rotation())
+            if self.rig.support:
+                pm.parent(jnt, self.rig.support[-1])
+            # end if parent support
+            self.rig.support.append(jnt)
+        # end for iterate controls
+    # end def _create_joints
+
+    def _create_support_chain(self):
+        """Create the support chain of the quadruped back leg."""
+        positions = self._get_support_chain_positions()
+        joints = list()
+        for pos in positions:
+            jnt = node.joint('Support', t=pos)
+            if joints:
+                pm.parent(jnt, joints[-1])
+            # end if parent joints
+            joints.append(jnt)
+        # end for iterate positions
+    # end def _create_support_chain
+# end class QuadrupedLeg
+
+cmds.file(new=True, f=True)
+backleg = QuadrupedLeg(side='L')
+backleg.guide()
+backleg.default_guide_data()
+backleg.puppet()
+#backleg.build()

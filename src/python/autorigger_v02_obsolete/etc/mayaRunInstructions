@@ -1,0 +1,18 @@
+location:
+/sw/external/autodesk/maya2016-x64/bin/mayapy
+
+arguments:
+/corp/home/etekinalp/maya/scripts/toMaya.py ${resource_loc} ""
+
+
+keys:
+change the runLatest shortcut into ctrlNumPad0
+
+
+
+In Maya as a mel shelf button:
+
+
+system("eclipse >/dev/null 2>&1 &");
+if(!`commandPort -q -n "localhost:7720"`)
+    commandPort -n "localhost:7720";

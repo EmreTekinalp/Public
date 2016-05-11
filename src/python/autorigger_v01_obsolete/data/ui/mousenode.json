@@ -1,0 +1,17 @@
+{
+    "name": "mousenode",
+    "attributes":{
+        "tx": 50,
+        "ty": 50,
+        "tz": 0,
+        "inhook": [],
+        "outhook": [],
+        "size": 1,
+        "shape": "circle",
+        "fill_color": "transparent",
+        "outline_color": "transparent",
+        "stroke_width": 2,
+        "connection_color": "connection",
+        "connection_strokesize": 2
+    }
+}

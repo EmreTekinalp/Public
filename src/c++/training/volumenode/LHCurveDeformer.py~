@@ -1,0 +1,1183 @@
+########## Notes and fixes 
+########## Right now the Curve deformer is determining world rotation axes
+########## I need to work out how to determine rotation locally
+
+##### For Debug
+            #if (itGeo.index() == 0):
+            #    print pt[0]
+
+# kBezierCurveData
+# kBezierCurve 
+#  kCreateBezierManip
+# kNurbsCurveToBezier
+import math, sys
+import maya.OpenMayaMPx as OpenMayaMPx
+import maya.OpenMaya as OpenMaya
+import maya.cmds as cmds
+import maya.OpenMayaRender as OpenMayaRender
+import maya.OpenMayaUI as OpenMayaUI
+
+
+class LHCurveDeformer(OpenMayaMPx.MPxDeformerNode):
+    kPluginNodeId = OpenMaya.MTypeId(0x05049002)
+     
+
+    #class variables
+    # curves
+    aCurve = OpenMaya.MObject()
+    aAimCurve = OpenMaya.MObject()
+    aCurveBase = OpenMaya.MObject()
+    aAimCurveBase = OpenMaya.MObject()
+    # attributes
+    aPreserveLength = OpenMaya.MObject()
+    aLength = OpenMaya.MObject()
+    aLengthDir = OpenMaya.MObject()
+    aRotationAmount = OpenMaya.MObject()
+    aRevolveAmount = OpenMaya.MObject()
+    aFalloff = OpenMaya.MObject()
+    aScale = OpenMaya.MObject()
+    aMaintainVolume = OpenMaya.MObject()
+    aSlide = OpenMaya.MObject()
+
+    # Weights
+
+    aTranslateWeights = OpenMaya.MObject()
+    aLengthWeights = OpenMaya.MObject()
+    aRotationWeights = OpenMaya.MObject()
+    aRevolveWeights = OpenMaya.MObject()
+    aScaleWeights = OpenMaya.MObject()
+    aVolumeWeights = OpenMaya.MObject()
+    aSlideWeights = OpenMaya.MObject()
+
+
+
+
+
+    # Weight Parents
+    aTranslateWeightsParent = OpenMaya.MObject()
+    aLengthWeightsParent = OpenMaya.MObject()
+    aRotationWeightsParent = OpenMaya.MObject()
+    aRevolveWeightsParent = OpenMaya.MObject()
+    aScaleWeightsParent = OpenMaya.MObject()
+    aVolumeWeightsParent = OpenMaya.MObject()
+    aSlideWeightsParent = OpenMaya.MObject()
+
+    aParentParent = OpenMaya.MObject()
+    aChildParent = OpenMaya.MObject()
+
+    aAttrParent = OpenMaya.MObject()
+    aAvar = OpenMaya.MObject()
+
+    def __init__(self):
+        OpenMayaMPx.MPxDeformerNode.__init__(self)
+
+
+####################################################
+######## Weights ###################################
+####################################################
+
+
+    def getWeightValues(self, data, weightParent, weightChild, mIndex, returnWeightlist):
+        
+	arrayHandle = OpenMaya.MArrayDataHandle(data.inputArrayValue( weightParent ))
+	count = arrayHandle.elementCount()
+	result = 0.0
+        if count and mIndex <= mIndex:
+            try:
+	        arrayHandle.jumpToElement(mIndex)
+
+	        handle = OpenMaya.MDataHandle(arrayHandle.inputValue() )
+	        child = OpenMaya.MDataHandle(handle.child( weightChild ) )
+                newData = OpenMaya.MFnDoubleArrayData(child.data())
+                returnWeightlist = OpenMaya.MFnDoubleArrayData(child.data()).array()
+            except:
+                pass
+
+        #returnWeightlist = OpenMaya.MFnDoubleArrayData(handle.data()).array()
+        return returnWeightlist
+
+
+    ### elementary algebra def ###### x + 0 = 10 #### can be seen as ####### variable + numArg = equalArg
+#    def elemAlgebra( self, numArg, equalArg):
+#        # if num arg is positive make it negative if it is negative make it positive
+#        numArg = numArg * -1.0
+#        # add numArg to equalArg
+#        variable = numArg + equalArg
+#        return variable
+
+    def getConnectedDagNode( self, attrArg ):
+        plugArg = OpenMaya.MPlug( self.thisMObject(), attrArg )
+        dagPath = OpenMaya.MDagPath()
+        if( plugArg.isConnected() ):
+            plugArr = OpenMaya.MPlugArray()
+            plugArg.connectedTo( plugArr, True, False )
+            plugDag = OpenMaya.MPlug( plugArr[0] )
+            oDagNode = plugDag.node()
+            fnDagNode = OpenMaya.MFnDagNode( oDagNode )
+            fnDagNode.getPath( dagPath )
+            return dagPath
+        else:
+            return None
+
+    def setCurveCvs( self,curve,  setPoints ):
+        #plugArg = OpenMaya.MPlug( self.thisMObject(), attrArg )
+        #dagPath = OpenMaya.MDagPath()
+        newCurve = curve.setCVs(setPoints ,OpenMaya.MSpace.kWorld)
+        return newCurve
+
+
+
+    def deform(self, data, itGeo, localToWorldMatrix, mIndex):
+
+        getEnvelope = OpenMayaMPx.cvar.MPxDeformerNode_envelope
+        envelope = data.inputValue(getEnvelope).asFloat()
+
+        #get Attributes
+        preserveLength = data.inputValue(LHCurveDeformer.aPreserveLength).asFloat()
+        slideLength = data.inputValue(LHCurveDeformer.aLength).asFloat()
+        lengthDirection = data.inputValue(LHCurveDeformer.aLengthDir).asFloat()
+        rotationAmount = data.inputValue(LHCurveDeformer.aRotationAmount).asFloat()
+        RevolveAmount = data.inputValue(LHCurveDeformer.aRevolveAmount).asFloat()
+        falloff = data.inputValue(LHCurveDeformer.aFalloff).asFloat()
+        scale = data.inputValue(LHCurveDeformer.aScale).asFloat()
+        volume = data.inputValue(LHCurveDeformer.aMaintainVolume).asFloat()
+        slide = data.inputValue(LHCurveDeformer.aSlide).asFloat()
+        #hTestMatrix = data.outputValue(LHCurveDeformer.aTestMatrix)
+        #oTestMatrix = hTestMatrix.asMatrix()
+
+
+
+        #if one of these curves are not connected the deformer will not deform
+        try:
+            oCurve = data.inputValue(LHCurveDeformer.aCurve).asNurbsCurve()
+            oAimCurve = data.inputValue(LHCurveDeformer.aAimCurve).asNurbsCurve()
+            oCurveBase = data.inputValue(LHCurveDeformer.aCurveBase).asNurbsCurve()
+            oAimCurveBase = data.inputValue(LHCurveDeformer.aAimCurveBase).asNurbsCurve()
+        except:
+            raise RuntimeError, "One or more curves are not connected"
+        
+        if oCurve.isNull() or oAimCurve.isNull() or oCurveBase.isNull() or oAimCurveBase.isNull():
+            return
+        ########################
+        ### Get info from curves
+        ########################
+
+### get dag path Curve
+        dhCurve = data.inputValue( self.aCurve )
+        fnCurvePath = self.getConnectedDagNode( self.aCurve )
+        dagPathCurve = OpenMaya.MDagPath()
+	fnCurvePath.getPath(dagPathCurve)
+	dagPathCurve.extendToShape()
+        ### get Cvs from Curve
+        fnCurve = OpenMaya.MFnNurbsCurve( dagPathCurve )
+        curvePoints = OpenMaya.MPointArray()
+        fnCurve.getCVs(curvePoints)
+        curveDegree = fnCurve.degree()
+        #curveForm = fnCurve.Form
+### get dag path Aim Curve
+        dhAimCurve = data.inputValue( self.aAimCurve )
+        fnAimCurvePath = self.getConnectedDagNode( self.aAimCurve )
+        dagPathAimCurve = OpenMaya.MDagPath()
+	fnAimCurvePath.getPath(dagPathAimCurve)
+	dagPathAimCurve.extendToShape()
+        ### get Cvs from aimCurve
+        fnAimCurve = OpenMaya.MFnNurbsCurve( dagPathAimCurve )
+        aimPoints = OpenMaya.MPointArray()
+        fnAimCurve.getCVs(aimPoints)
+        aimCurveDegree = fnAimCurve.degree()
+        #aimCurveForm = fnAimCurve.Form
+### get dag path Sample Curve Base
+
+        dhCurveBase = data.inputValue( self.aCurveBase )
+        fnCurveBasePath = self.getConnectedDagNode( self.aCurveBase )
+        dagPathCurveBase = OpenMaya.MDagPath()
+	fnCurveBasePath.getPath(dagPathCurveBase)
+	dagPathCurveBase.extendToShape()
+        ### get Cvs from CurveBase
+        fnCurveBase = OpenMaya.MFnNurbsCurve( dagPathCurveBase )
+        curveBasePoints = OpenMaya.MPointArray()
+        fnCurveBase.getCVs(curveBasePoints)
+        curveBaseDegree = fnCurveBase.degree()
+        #curveBaseForm = fnCurveBase.Form
+### get dag path Sample Aim curve Base
+
+        dhAimCurveBase = data.inputValue( self.aAimCurveBase )
+        fnAimCurveBasePath = self.getConnectedDagNode( self.aAimCurveBase )
+        dagPathAimCurveBase = OpenMaya.MDagPath()
+	fnAimCurveBasePath.getPath(dagPathAimCurveBase)
+	dagPathAimCurveBase.extendToShape()
+        ### get Cvs from AimCurveBase
+        fnAimCurveBase = OpenMaya.MFnNurbsCurve( dagPathAimCurveBase )
+        aimCurveBasePoints = OpenMaya.MPointArray()
+        fnAimCurveBase.getCVs(aimCurveBasePoints)
+        aimCurveBaseDegree = fnAimCurveBase.degree()
+        #aimCurveBaseForm = fnAimCurveBase.Form
+#################################################################################
+### SlideCurve ##################################################################
+#################################################################################
+####Create a curve with uniform cvs for slide so there is no skewing during slide
+#################################################################################
+        #slideCurve2 = 1.1
+        #try:
+        #    if slideCurve2:
+        #        dummy = 0.0
+        #except:
+        #    slideCurve = OpenMaya.MFnNurbsCurve()
+        #    slideCurve2 = slideCurve.createWithEditPoints( curvePoints, curveDegree, 1, False, False, True )
+
+
+
+        #slideAimCurve = OpenMaya.MFnNurbsCurve()
+        #slideAimCurve = slideAimCurve.createWithEditPoints( aimPoints, aimCurveDegree, 1, False, False, True )
+
+        #slideCurveBase = OpenMaya.MFnNurbsCurve()
+        #slideCurveBase = slideCurveBase.createWithEditPoints( curveBasePoints, curveBaseDegree, 1, False, False, True )
+
+        #slideAimCurveBase = OpenMaya.MFnNurbsCurve()
+        #slideAimCurveBase = slideAimCurveBase.createWithEditPoints( aimCurveBasePoints, aimCurveBaseDegree, 1, False, False, True )
+
+        ### retrieve weight values
+
+        #multiWeights = []
+        #multiWeights = self.getWeightValues(data, LHCurveDeformer.aMultiWeightsParent, LHCurveDeformer.aMultiWeights, mIndex, multiWeights )
+
+
+
+        translateWeights = []
+        translateWeights = self.getWeightValues(data, LHCurveDeformer.aTranslateWeightsParent, LHCurveDeformer.aTranslateWeights, mIndex, translateWeights )
+
+        lengthWeights = []
+        lengthWeights = self.getWeightValues(data, LHCurveDeformer.aLengthWeightsParent, LHCurveDeformer.aLengthWeights, mIndex, lengthWeights )
+
+        rotationWeights = []
+        rotationWeights = self.getWeightValues(data, LHCurveDeformer.aRotationWeightsParent, LHCurveDeformer.aRotationWeights, mIndex, rotationWeights )
+
+        revolveWeights = []
+        revolveWeights = self.getWeightValues(data, LHCurveDeformer.aRevolveWeightsParent, LHCurveDeformer.aRevolveWeights, mIndex, revolveWeights )
+
+        scaleWeights = []
+        scaleWeights = self.getWeightValues(data, LHCurveDeformer.aScaleWeightsParent, LHCurveDeformer.aScaleWeights, mIndex, scaleWeights )
+
+        volumeWeights = []
+        volumeWeights = self.getWeightValues(data, LHCurveDeformer.aVolumeWeightsParent, LHCurveDeformer.aVolumeWeights, mIndex, volumeWeights )
+
+        slideWeights = []
+        slideWeights = self.getWeightValues(data, LHCurveDeformer.aSlideWeightsParent, LHCurveDeformer.aSlideWeights, mIndex, slideWeights )
+
+
+
+
+        #variables to be used with the loop
+        fnDouble = OpenMaya.MScriptUtil()
+        fnDouble.createFromDouble(0.0)
+        fnParam = fnDouble.asDoublePtr()
+
+
+        fnMinDouble = OpenMaya.MScriptUtil()
+        fnMinDouble.createFromDouble(0.0)
+        fnMinParam = fnMinDouble.asDoublePtr()
+
+        fnMaxDouble = OpenMaya.MScriptUtil()
+        fnMaxDouble.createFromDouble(0.0)
+        fnMaxParam = fnMaxDouble.asDoublePtr()
+
+        fnCurveBase.getKnotDomain(fnMinParam,fnMaxParam)
+        MaxParam = OpenMaya.MScriptUtil.getDouble( fnMaxParam )
+        MinParam = OpenMaya.MScriptUtil.getDouble( fnMinParam )
+
+        # Points
+        lengthDirPt = OpenMaya.MPoint()
+        lengthPt = OpenMaya.MPoint()
+        lengthParam = 0.0
+        lengthBasePt = OpenMaya.MPoint()
+        lengthBaseParam = 0.0
+        lengthPoint = OpenMaya.MPoint()
+        slidePoint = OpenMaya.MPoint()
+        slidePointBase = OpenMaya.MPoint()
+        slideVec = OpenMaya.MVector()
+        slideBake = 0.0
+        curveBasePt = OpenMaya.MPoint()
+        aimCurveBasePt = OpenMaya.MPoint()
+        driverPt = OpenMaya.MPoint()
+
+        #driverBasePtLength = OpenMaya.MPoint()
+        #driverPtLength = OpenMaya.MPoint()
+
+        aimPt = OpenMaya.MPoint()
+        DriveMatrix = OpenMaya.MMatrix()
+
+
+
+        #testy = OpenMaya.MPoint(0.0,0.0,-10.0)
+        #origin = OpenMaya.MPoint(curvePoints[0].x,curvePoints[0].y,curvePoints[0].z)
+### get dag path Sample Curve Base
+
+        #dhCurveBase = data.inputValue( self.aCurveBase )
+        #fnCurveBasePath = self.getConnectedDagNode( self.aCurveBase )
+        #dagPathCurveBase = OpenMaya.MDagPath()
+	#fnCurveBasePath.getPath(dagPathCurveBase)
+	#dagPathCurveBase.extendToShape()
+        ### get Cvs from CurveBase
+
+        #fnCurveBaseCV = OpenMaya.MItCurveCV( dagPathCurveBase )
+        #if (falloff == 1.0):
+        #    fnCurveBaseCV.setPosition(testy ,OpenMaya.MSpace.kWorld)
+
+        #if (falloff == 0.0):
+        #    fnCurveBaseCV.setPosition(origin ,OpenMaya.MSpace.kWorld)
+
+        #fnCurveBaseCV.updateCurve()
+
+
+        #curveBasePoints = OpenMaya.MPointArray()
+        #fnCurveBase.getCVs(curveBasePoints)
+        #curveBaseDegree = fnCurveBase.degree()
+
+
+
+        #fnAimCurveBasePath = self.getConnectedDagNode( self.aAimCurveBase )
+        #setCurveCvs
+
+        #if (falloff == 1.0):
+        #fnCurveBase = self.setCurveCvs(fnCurveBase, curvePoints)
+            #fnCurveBase = fnCurveBase.setCVs(curvePoints ,OpenMaya.MSpace.kWorld)
+        #fnCurveBase.updateCurve()
+
+        #if (falloff == 0.1):
+        #    fnCurveBase.setCVs(curveBasePoints ,OpenMaya.MSpace.kWorld)
+
+        #help(fnCurveBase)
+
+        #curvePoints = curvePoints[0].setPosition( testy ,OpenMaya.MSpace.kWorld
+
+
+        #aimPt = OpenMaya.MPoint()
+################################
+###### Deform Loop #############
+################################
+
+        while not itGeo.isDone():
+            pt = itGeo.position()
+            w = self.weightValue(data, mIndex, itGeo.index())
+            w = w * envelope
+            #pt *= localToWorldMatrix
+            #neutralPt = pt
+            if w <= 0:
+                itGeo.next()
+                continue
+
+############################################################
+############# custom weights ###############################
+############################################################
+
+            # translate
+            try:
+                tranW = translateWeights[itGeo.index()]
+            except:
+                tranW = 1.0
+
+            # length
+            try:
+                lengthW = lengthWeights[itGeo.index()]
+            except:
+                lengthW = 1.0
+
+            # rotation
+            try:
+                rotationW = rotationWeights[itGeo.index()]
+            except:
+                rotationW = 1.0
+
+            # revolve
+            try:
+                revolveW = revolveWeights[itGeo.index()]
+            except:
+                revolveW = 1.0
+
+            # scale
+            try:
+                scaleW = scaleWeights[itGeo.index()]
+            except:
+                scaleW = 1.0
+
+            # volume
+            try:
+                volumeW = volumeWeights[itGeo.index()]
+            except:
+                volumeW = 1.0
+
+            # slide
+            try:
+                slideW = slideWeights[itGeo.index()]
+            except:
+                slideW = 1.0
+
+
+
+
+##################################
+
+#### CurveDeform ######
+#######################
+
+            # Find all closest point to base curve 
+            # For point, find nearest parameter to the base curve
+                # Then use this parameter to find the points on subsequent curves
+            #curveBasePt
+            curveBasePt = fnCurveBase.closestPoint( pt, fnParam, 0.00001, OpenMaya.MSpace.kWorld )
+            #curveBasePtParam
+            curveBasePtParam = OpenMaya.MScriptUtil.getDouble( fnParam )
+            # findpLengthof curve to decide the curve unit amount compared to world unit
+       
+
+
+            distance = (pt - curveBasePt).length()
+
+
+
+            falloffWeight = 1.0
+#######################
+#####FalloffAmount#####
+            if falloff < distance: 
+                falloffWeight = falloff/distance
+            if falloffWeight > 1.0:
+                falloffWeight = 1.0
+
+
+
+##################################################################################################
+############# Find Slide Parameters ##############################################################
+##################################################################################################
+
+
+##################################################################################################
+############# Length #########################################################################
+##################################################################################################
+
+
+
+            '''
+            lengthPt = fnCurveBase.closestPoint( pt, fnParam, 0.00001, OpenMaya.MSpace.kWorld )
+            lengthParam = OpenMaya.MScriptUtil.getDouble( fnParam )
+
+            lengthValue = length
+	    lengthCheck = lengthParam * lengthValue
+	    lengthParamValue = None
+
+            # remap thepLengthdir to the Parameter max becausepLengthdir cannot exceed 1 or go below 0 you know it will not exceed the maximum or minimum parameters
+            # insure you never go over the curves highest and lowest params
+	    if (lengthCheck > MinParam) or (lengthCheck < MaxParam):
+		lengthParamValue = lengthParam * lengthValue
+	    if (lengthCheck <= MinParam):
+		lengthParamValue = MinParam
+	    if (lengthCheck >= MaxParam):
+		lengthParamValue = lengthDir
+
+            sampleLength = fnCurveBase.length( 0.00001 )
+            driveLength = fnCurve.length( 0.00001 )
+
+	    #### make vector or point on curve depending on lengthValue value
+	    if (lengthCheck > MinParam) or (lengthCheck < MaxParam):
+		fnCurve.getPointAtParam( lengthParamValue, lengthPoint, OpenMaya.MSpace.kWorld )
+
+	    #if (lengthCheck <= MinParam):
+		#fnCurve.getPointAtParam( lengthParamValue, lengthPoint, OpenMaya.MSpace.kWorld )
+		#lengthVec = fnCurve.tangent( MinParam, OpenMaya.MSpace.kWorld )
+                # remove as much skewing as possible
+		#lengthVec = lengthVec * (driveLength/MaxParam)
+		#lengthValue = lengthValue + curveBasePtParam
+		#lengthPoint -= (-lengthVec) * lengthValue
+
+	    #if (lengthCheck >= MaxParam):
+		#fnCurve.getPointAtParam( lengthParamValue, lengthPoint, OpenMaya.MSpace.kWorld )
+		#lengthVec = fnCurve.tangent( MaxParam - .00001, OpenMaya.MSpace.kWorld )
+                # remove as much skewing as possible
+		#lengthVec = lengthVec * (driveLength/MaxParam)
+		#lengthValue = lengthValue + (curveBasePtParam - MaxParam)
+		#lengthPoint -= (-lengthVec) * lengthValue
+	    #slidePoint.x += slidePoint.x + lengthPoint.x
+	    #slidePoint.y += slidePoint.y + lengthPoint.y
+  	    #slidePoint.z += slidePoint.z + lengthPoint.z
+
+
+            ### scale
+            #pt += (lengthDirPt - curveBasePt) *pLength* w
+            #slidePoint -= (slidePoint) * length
+	    #pt.z +=(slidePoint.z - curveBasePt.z) * w
+
+            #if (itGeo.index() == 0):
+                #print 'lengthComp', lengthComp, 'sampleLength', sampleLength, 'driveLength', driveLength,'lengthFinal', lengthFinal
+            '''
+#############################################################################################
+############# Slide #########################################################################
+#############################################################################################
+            sampleLength = fnCurveBase.length( 0.00001 )
+            driveLength = fnCurve.length( 0.00001 )
+            #shorten DriveLength based on length attribute
+
+            lengthParam = 0.0
+            lengthBaseParam = 0.0
+            pLength= preserveLength
+            length = slideLength
+
+            lengthDir = lengthDirection
+            lengthDir = lengthDir*MaxParam
+
+            fnCurve.getPointAtParam( lengthDir, lengthDirPt, OpenMaya.MSpace.kWorld )
+
+            lengthComp = sampleLength/driveLength
+            lengthFinal = lengthComp * driveLength
+
+            #length = length * driveLength
+
+
+##############################################################################################################
+            slidePt = fnCurveBase.closestPoint( pt, fnParam, 0.00001, OpenMaya.MSpace.kWorld )
+            slideParam = OpenMaya.MScriptUtil.getDouble( fnParam )
+
+
+
+
+
+
+            slideValue = slide * slideW
+	    slideCheck = slideParam + slideValue
+	    slideParamValue = None
+
+            # remap thepLengthdir to the Parameter max becausepLengthdir cannot exceed 1 or go below 0 you know it will not exceed the maximum or minimum parameters
+            # insure you never go over the curves highest and lowest params
+	    if (slideCheck > MinParam) or (slideCheck < MaxParam):
+		slideParamValue = slideParam + slideValue
+	    if (slideCheck <= MinParam):
+		slideParamValue = MinParam
+	    if (slideCheck >= MaxParam):
+		slideParamValue = MaxParam
+
+
+
+	    #### make vector or point on curve depending on slideValue value
+	    if (slideCheck > MinParam) or (slideCheck < MaxParam):
+		fnCurve.getPointAtParam( slideParamValue, slidePoint, OpenMaya.MSpace.kWorld )
+
+	    if (slideCheck <= MinParam):
+		fnCurve.getPointAtParam( slideParamValue, slidePoint, OpenMaya.MSpace.kWorld )
+		slideVec = fnCurve.tangent( MinParam, OpenMaya.MSpace.kWorld )
+                # remove as much skewing as possible
+                #if (pLength!= 1):
+		#    slideVec = slideVec * (driveLength/MaxParam)
+		#slideVec = (slideVec*falloff) * (driveLength/MaxParam)
+		slideVec = slideVec * (driveLength/MaxParam)
+		slideValue = slideValue + curveBasePtParam
+		slidePoint -= (-slideVec) * slideValue
+
+	    if (slideCheck >= MaxParam):
+		fnCurve.getPointAtParam( slideParamValue, slidePoint, OpenMaya.MSpace.kWorld )
+		slideVec = fnCurve.tangent( MaxParam - .00001, OpenMaya.MSpace.kWorld )
+                # remove as much skewing as possible
+                #if (pLength!= 1):
+		#    slideVec = slideVec * (driveLength/MaxParam)
+		#slideVec = (slideVec*falloff) * (driveLength/MaxParam)
+		slideVec = slideVec * (driveLength/MaxParam)
+		slideValue = slideValue + (curveBasePtParam - MaxParam)
+		slidePoint -= (-slideVec) * slideValue
+            slidePoint = slidePoint - (lengthDirPt - slidePoint) * (lengthComp - 1.0) * length * w 
+            #slidePoint -= (slidePoint - lengthDirPt) * lengthComp
+            #pt = pt - (slidePoint - lengthDirPt) * length 
+
+
+
+#############################################################################################
+############# Length #########################################################################
+#############################################################################################
+            #if (itGeo.index() == 0):
+            #    print 'DriveLength', driveLength, 'BaseLength', sampleLength, 'lengthComp', lengthComp, 'lengthFixed', lengthFinal
+            '''
+            if (pLength== 1):
+                #pLengthcompensate
+
+
+
+                #fnCurveBase.getPointAtParam( lengthDir, lengthDirPt, OpenMaya.MSpace.kWorld )
+                lengthComp = sampleLength/driveLength
+                lengthFinal = lengthComp * driveLength
+
+
+                lengthPt = fnCurve.closestPoint( pt, fnParam, 0.00001, OpenMaya.MSpace.kWorld )
+                lengthParam = OpenMaya.MScriptUtil.getDouble( fnParam )
+
+
+                lengthBasePt = fnCurveBase.closestPoint( pt, fnParam, 0.00001, OpenMaya.MSpace.kWorld )
+                lengthBaseParam = OpenMaya.MScriptUtil.getDouble( fnParam )
+                lengthAtParam = (sampleLength/MaxParam)*lengthParam
+
+
+                lengthSlideParam = lengthDir
+                fnCurveBase.getPointAtParam( lengthDir, lengthDirPt, OpenMaya.MSpace.kWorld )
+
+                lengthAtParam = (sampleLength/MaxParam)*lengthParam
+                lengthBaseAtParam = (sampleLength/MaxParam)*lengthBaseParam
+                
+                if lengthAtParam == 0 or lengthBaseAtParam == 0:
+                    finalLengthComp = 0
+                else:
+                    finalLengthComp = lengthAtParam/lengthBaseAtParam
+
+                newSlidePt = fnCurveBase.closestPoint( slidePoint, fnParam, 0.00001, OpenMaya.MSpace.kWorld )
+                lengthSlideFinalParam = OpenMaya.MScriptUtil.getDouble( fnParam )
+                lengthSlideFinalParam = lengthSlideFinalParam * finalLengthComp
+                if falloff == 0:
+                    falloff = 0.00001
+                else:
+                    falloff = falloff
+
+                lengthSlideFinalParam = lengthSlideFinalParam * falloff
+
+                finalSlidePoint = OpenMaya.MPoint()
+                fnCurve.getPointAtParam( lengthSlideFinalParam, finalSlidePoint, OpenMaya.MSpace.kWorld )
+                
+
+                slidePoint = finalSlidePoint
+            '''
+
+################ Update Slide point
+
+
+################ Update slideParamValue
+
+
+
+
+
+
+
+            #if (itGeo.index() == 0):
+            #    if (pLength== 1):
+            #        print 'MaxParam', MaxParam, 'lengthValue', driveLength,'Param', lengthParam,'LengthAtParam', lengthAtParam,'PtAtParam', (lengthBasePt[0],lengthBasePt[1],lengthBasePt[2])
+
+            #if (pLength== 1):
+            #    if falloff == 0:
+            #        falloff = 0.00001
+            #    else:
+            #        falloff = falloff
+
+
+
+                #lengthSlideFinalParam = fnCurve.findParamFromLength(lengthAtParam)
+                #lengthSlideFinalParam = lengthlengthSlideFinalParam
+
+
+
+
+
+
+
+
+
+
+##################################################################################################
+############# Slide Ends #########################################################################
+##################################################################################################
+
+
+            #driverPt 
+            fnCurve.getPointAtParam( slideParamValue, driverPt, OpenMaya.MSpace.kWorld )
+
+            #aimCurveBasePt
+            fnAimCurveBase.getPointAtParam( slideParamValue, aimCurveBasePt, OpenMaya.MSpace.kWorld )
+
+            #aimPt
+            fnAimCurve.getPointAtParam( slideParamValue, aimPt, OpenMaya.MSpace.kWorld )
+
+
+
+
+
+
+##################################################
+
+############ SampleVec for RotationCompensation #######################
+
+
+            #sampleVec1 = OpenMaya.MVector(1.0,0.0,0.0)
+            xSampleVector = fnCurveBase.tangent( slideParamValue, OpenMaya.MSpace.kWorld )
+
+     
+            ### vec3 is cross product of vec1 & vecCross
+            # to get y to point up I need to reverse the direction of vec 2
+            sampleVecCross = (curveBasePt - aimCurveBasePt)
+            ySampleVector = (xSampleVector ^ sampleVecCross)
+            zSampleVector = (xSampleVector ^  ySampleVector)
+            #Use these vectors as your X,Y, and Z
+
+
+            # normalize all vectors
+            xSampleVector.normalize()
+            ySampleVector.normalize()
+            zSampleVector.normalize()
+
+
+
+            SampleMatrix = OpenMaya.MMatrix()
+            # x
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[0], 0, xSampleVector[0])
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[0], 1, xSampleVector[1])
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[0], 2, xSampleVector[2])
+            # y
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[1], 0, ySampleVector[0])
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[1], 1, ySampleVector[1])
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[1], 2, ySampleVector[2])
+            # z
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[2], 0, zSampleVector[0])
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[2], 1, zSampleVector[1])
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[2], 2, zSampleVector[2])
+            # translate
+            OpenMaya.MScriptUtil.setDoubleArray(SampleMatrix[3], 3, 1.0)
+            
+            # find the rotation offset, then apply later
+            rotMatrix = OpenMaya.MEulerRotation()
+            #### 0 = XYZ rotation order, check maya api doc for other rotation orders
+            rotMatrix = rotMatrix.decompose(SampleMatrix,0)
+#############################################################################################
+
+            xAxisVec = fnCurve.tangent( slideParamValue, OpenMaya.MSpace.kWorld )
+
+            vecCross = driverPt - aimPt
+            yAxisVec = xAxisVec ^ vecCross
+            zAxisVec = xAxisVec ^  yAxisVec
+            
+
+	    xAxisVec.normalize()
+	    yAxisVec.normalize()
+	    zAxisVec.normalize()
+
+            # apply rotate offset
+            rotateX = OpenMaya.MQuaternion(-rotMatrix[0]+ (RevolveAmount * revolveW),xAxisVec)
+            rotateMatrixX = rotateX.asMatrix()
+            yAxisVec = yAxisVec * rotateMatrixX
+            zAxisVec = zAxisVec * rotateMatrixX
+
+            rotateY = OpenMaya.MQuaternion(-rotMatrix[1],yAxisVec)
+            rotateMatrixY = rotateY.asMatrix()
+            xAxisVec = xAxisVec * rotateMatrixY
+            zAxisVec = zAxisVec * rotateMatrixY
+
+            rotateZ = OpenMaya.MQuaternion(-rotMatrix[2],zAxisVec)
+            rotateMatrixZ = rotateZ.asMatrix()
+            xAxisVec = xAxisVec * rotateMatrixZ
+            yAxisVec = yAxisVec * rotateMatrixZ
+            
+
+            # x
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[0], 0, xAxisVec[0])
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[0], 1, xAxisVec[1])
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[0], 2, xAxisVec[2])
+            # y
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[1], 0, yAxisVec[0])
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[1], 1, yAxisVec[1])
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[1], 2, yAxisVec[2])
+            # z
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[2], 0, zAxisVec[0])
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[2], 1, zAxisVec[1])
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[2], 2, zAxisVec[2])
+            # translate
+            OpenMaya.MScriptUtil.setDoubleArray(DriveMatrix[3], 3, 1.0)
+
+
+
+########### RotationAmount ##########################
+
+            DriveMatrixEuler = OpenMaya.MEulerRotation()
+            DriveMatrixEuler = DriveMatrixEuler.decompose(DriveMatrix,0)
+            DriveMatrixEuler = OpenMaya.MEulerRotation( DriveMatrixEuler[0] * (rotationAmount * rotationW) * falloffWeight , DriveMatrixEuler[1] * (rotationAmount * rotationW) * falloffWeight, DriveMatrixEuler[2] * (rotationAmount * rotationW) * falloffWeight)
+            DriveMatrix = DriveMatrixEuler.asMatrix()
+############### get base vectors for inverse deformation ( you want the exact deformation only reversed so you can  fit using both drive and base curves )
+
+
+############### Apply Rotation Amount
+
+
+
+
+            #preserve the pt's rest position
+            toCenterBase = OpenMaya.MVector(-curveBasePt.x, -curveBasePt.y, -curveBasePt.z)
+            pt = pt + toCenterBase
+
+            # do rotation, then put pts back
+	    pt = ( pt * DriveMatrix ) - toCenterBase
+
+
+############## Apply Translation
+###############################################
+            #pt +=(lengthDirPt - slidePoint) *pLength* w
+	    #pt.x +=(slidePoint.x - curveBasePt.x) * w
+	    #pt.y +=(slidePoint.y - curveBasePt.y) * w
+	    #pt.z +=(slidePoint.z - curveBasePt.z) * w
+
+	    pt.x +=(slidePoint.x - curveBasePt.x) * w * falloffWeight
+	    pt.y +=(slidePoint.y - curveBasePt.y) * w * falloffWeight
+	    pt.z +=(slidePoint.z - curveBasePt.z) * w * falloffWeight 
+
+######################
+##### Scale ##########
+######################
+######################
+            maintainVolume = volume
+            ### scale
+            #pt = pt - (lengthDirPt - pt) * (lengthComp - 1.0) * length * w
+            pt = pt - (slidePoint - pt) * (lengthComp - 1.0) * maintainVolume * w * falloffWeight * volumeW
+            pt = pt - (slidePoint - pt) * (scale - 1.0) * w * falloffWeight *scaleW
+#######################
+
+
+
+            itGeo.setPosition(pt)
+            itGeo.next()
+ 
+        return
+ 
+
+def initialize():
+    
+    
+    # create needed attribute types
+    tAttr = OpenMaya.MFnTypedAttribute()
+    nAttr = OpenMaya.MFnNumericAttribute()
+    cAttr = OpenMaya.MFnCompoundAttribute()
+    mAttr = OpenMaya.MFnMatrixAttribute()
+    
+#### Curve inputs
+    # driver
+    LHCurveDeformer.aCurve = tAttr.create('driverCurve', 'dc', OpenMaya.MFnData.kNurbsCurve)
+    LHCurveDeformer.addAttribute( LHCurveDeformer.aCurve )
+    # aim
+    LHCurveDeformer.aAimCurve = tAttr.create('AimCurve', 'ac', OpenMaya.MFnData.kNurbsCurve)
+    LHCurveDeformer.addAttribute( LHCurveDeformer.aAimCurve )
+    # driver Base
+
+    # sample driver
+    LHCurveDeformer.aCurveBase = tAttr.create('driverCurveBase', 'fcb', OpenMaya.MFnData.kNurbsCurve)
+    LHCurveDeformer.addAttribute( LHCurveDeformer.aCurveBase )
+    # sample base
+    LHCurveDeformer.aAimCurveBase = tAttr.create('driverAimCurveBase', 'dscb', OpenMaya.MFnData.kNurbsCurve)
+    LHCurveDeformer.addAttribute( LHCurveDeformer.aAimCurveBase )
+
+#### Attribute inputs
+    
+    LHCurveDeformer.aPreserveLength = nAttr.create('PreserveLength', 'plength', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    nAttr.setMin(0.0)
+    nAttr.setMax(1.0)
+    nAttr.setDefault(0.0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aPreserveLength)
+
+    LHCurveDeformer.aLength = nAttr.create('Length', 'length', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    #nAttr.setMin(0.0)
+    #nAttr.setMax(1.0)
+    nAttr.setDefault(0.0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aLength)
+
+    LHCurveDeformer.aLengthDir = nAttr.create('LengthDir', 'plengthd', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    nAttr.setMin(0.0)
+    nAttr.setMax(1.0)
+    nAttr.setDefault(0.0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aLengthDir)
+
+
+    LHCurveDeformer.aRotationAmount = nAttr.create('RotationAmount', 'ramount', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    nAttr.setMin(0.0)
+    nAttr.setMax(1.0)
+    nAttr.setDefault(1.0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aRotationAmount)
+
+    LHCurveDeformer.aRevolveAmount = nAttr.create('RevolveAmount', 'revamount', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    #nAttr.setMin(0.0)
+    #nAttr.setMax(1.0)
+    #nAttr.setDefault(1.0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aRevolveAmount)
+
+
+    LHCurveDeformer.aFalloff = nAttr.create('Falloff', 'falloff', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    nAttr.setMin(0.0)
+    #nAttr.setMax(1.0)
+    nAttr.setDefault(100.0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aFalloff)
+
+    LHCurveDeformer.aScale = nAttr.create('Scale', 'scale', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    nAttr.setMin(0.0)
+    nAttr.setDefault(1.0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aScale)
+
+    LHCurveDeformer.aMaintainVolume = nAttr.create('MaintainVolume', 'vol', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    nAttr.setMin(0.0)
+    nAttr.setMax(1.0)
+    nAttr.setDefault(0.0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aMaintainVolume)
+
+
+
+    LHCurveDeformer.aSlide = nAttr.create('Slide', 'slide', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aSlide)
+
+
+
+
+### Weights
+
+
+
+
+####translateWeights 
+    LHCurveDeformer.aTranslateWeights = tAttr.create('translateWeights', 'tweights', OpenMaya.MFnNumericData.kDoubleArray)
+    tAttr.setKeyable(True)
+    tAttr.setArray(False)
+    #tAttr.setDefault(0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aTranslateWeights)
+
+####lengthWeights 
+    LHCurveDeformer.aLengthWeights = tAttr.create('lengthWeights', 'lweights', OpenMaya.MFnNumericData.kDoubleArray)
+    tAttr.setKeyable(True)
+    tAttr.setArray(False)
+    #tAttr.setDefault(0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aLengthWeights)
+
+####rotationWeights 
+    LHCurveDeformer.aRotationWeights = tAttr.create('rotationWeights', 'rweights', OpenMaya.MFnNumericData.kDoubleArray)
+    tAttr.setKeyable(True)
+    tAttr.setArray(False)
+    #tAttr.setDefault(0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aRotationWeights)
+
+####revolveWeights 
+    LHCurveDeformer.aRevolveWeights = tAttr.create('revolveWeights', 'revweights', OpenMaya.MFnNumericData.kDoubleArray)
+    tAttr.setKeyable(True)
+    tAttr.setArray(False)
+    #tAttr.setDefault(0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aRevolveWeights)
+
+####scaleWeights 
+    LHCurveDeformer.aScaleWeights = tAttr.create('scaleWeights', 'scaleweights', OpenMaya.MFnNumericData.kDoubleArray)
+    tAttr.setKeyable(True)
+    tAttr.setArray(False)
+    #tAttr.setDefault(0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aScaleWeights)
+
+####volumeWeights 
+    LHCurveDeformer.aVolumeWeights = tAttr.create('volumeWeights', 'vweights', OpenMaya.MFnNumericData.kDoubleArray)
+    tAttr.setKeyable(True)
+    tAttr.setArray(False)
+    #tAttr.setDefault(0)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aVolumeWeights)
+
+####slideWeights 
+    LHCurveDeformer.aSlideWeights = tAttr.create('slideWeights', 'slideweights', OpenMaya.MFnNumericData.kDoubleArray)
+    tAttr.setKeyable(True)
+    tAttr.setArray(False)
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aSlideWeights)
+
+
+
+
+#### WeightParents
+
+
+
+#### scaleParentWeights 
+    LHCurveDeformer.aTranslateWeightsParent = cAttr.create("translateWeightsParent", "tweightsp")
+    cAttr.setKeyable(True)
+    cAttr.setArray(True)
+    cAttr.addChild( LHCurveDeformer.aTranslateWeights )
+    cAttr.setReadable(True); 
+    cAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aTranslateWeightsParent);
+
+#### scaleParentWeights 
+    LHCurveDeformer.aLengthWeightsParent = cAttr.create("lengthWeightsParent", "lweightsp")
+    cAttr.setKeyable(True)
+    cAttr.setArray(True)
+    cAttr.addChild( LHCurveDeformer.aLengthWeights )
+    cAttr.setReadable(True); 
+    cAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aLengthWeightsParent);
+
+#### scaleParentWeights 
+    LHCurveDeformer.aRotationWeightsParent = cAttr.create("rotationWeightsParent", "rweightsp")
+    cAttr.setKeyable(True)
+    cAttr.setArray(True)
+    cAttr.addChild( LHCurveDeformer.aRotationWeights )
+    cAttr.setReadable(True); 
+    cAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aRotationWeightsParent);
+
+#### scaleParentWeights 
+    LHCurveDeformer.aRevolveWeightsParent = cAttr.create("revolveWeightsParent", "revweightsp")
+    cAttr.setKeyable(True)
+    cAttr.setArray(True)
+    cAttr.addChild( LHCurveDeformer.aRevolveWeights )
+    cAttr.setReadable(True); 
+    cAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aRevolveWeightsParent);
+
+#### scaleParentWeights 
+    LHCurveDeformer.aScaleWeightsParent = cAttr.create("scaleWeightsParent", "sweightsp")
+    cAttr.setKeyable(True)
+    cAttr.setArray(True)
+    cAttr.addChild( LHCurveDeformer.aScaleWeights )
+    cAttr.setReadable(True); 
+    cAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aScaleWeightsParent);
+
+#### scaleParentWeights 
+    LHCurveDeformer.aVolumeWeightsParent = cAttr.create("volumeWeightsParent", "vweightsp")
+    cAttr.setKeyable(True)
+    cAttr.setArray(True)
+    cAttr.addChild( LHCurveDeformer.aVolumeWeights )
+    cAttr.setReadable(True); 
+    cAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aVolumeWeightsParent);
+
+
+####slideParentWeights 
+    LHCurveDeformer.aSlideWeightsParent = cAttr.create("slideWeightsParent", "slideweightsp")
+    cAttr.setKeyable(True)
+    cAttr.setArray(True)
+    cAttr.addChild( LHCurveDeformer.aSlideWeights )
+    cAttr.setReadable(True); 
+    cAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aSlideWeightsParent);
+
+
+
+
+    LHCurveDeformer.aAvar = nAttr.create('Avar', 'avar', OpenMaya.MFnNumericData.kFloat)
+    nAttr.setKeyable(True)
+    nAttr.setArray(True)
+    nAttr.setReadable(True);
+    nAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aAvar)
+
+
+    LHCurveDeformer.aAttrParent = cAttr.create("aAttrParent", "aattrparent")
+    cAttr.setKeyable(True)
+    cAttr.setArray(True)
+    cAttr.addChild( LHCurveDeformer.aAvar )
+    cAttr.setReadable(True); 
+    cAttr.setUsesArrayDataBuilder(True); 
+    LHCurveDeformer.addAttribute(LHCurveDeformer.aAttrParent);
+
+
+
+
+    ###Affects outputs and inputs
+    outputGeom = OpenMayaMPx.cvar.MPxDeformerNode_outputGeom
+    inputGeom = OpenMayaMPx.cvar.MPxDeformerNode_inputGeom
+
+
+
+
+##OUtPut
+    #LHSphereDeformer.attributeAffects(inputGeom, LHSphereDeformer.aRadiusSphere)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aCurve, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aAimCurve, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aCurveBase, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aAimCurveBase, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aPreserveLength, outputGeom)
+
+
+
+
+
+
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aLength, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aLengthDir, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aRotationAmount, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aRevolveAmount, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aFalloff, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aScale, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aMaintainVolume, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aSlide, outputGeom)
+
+
+
+
+
+
+
+
+
+
+
+
+
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aTranslateWeights, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aLengthWeights, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aRotationWeights, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aRevolveWeights, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aScaleWeights, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aVolumeWeights, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aSlideWeights, outputGeom)
+
+
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aTranslateWeightsParent, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aLengthWeightsParent, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aRotationWeightsParent, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aRevolveWeightsParent, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aScaleWeightsParent, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aVolumeWeightsParent, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aSlideWeightsParent, outputGeom)
+
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aAvar, outputGeom)
+    LHCurveDeformer.attributeAffects(LHCurveDeformer.aAttrParent, outputGeom)
+
+#tranW
+#lengthW
+#rotationW
+#revolveW
+#scaleW
+#volumeW
+#slideW
+#translateWeights
+#lengthWeights
+#rotationWeights
+#revolveWeights
+#scaleWeights
+#volumeWeights
+#slideWeights
+
+    # Make deformer weights paintable
+    cmds.makePaintable('LHCurveDeformer', 'weights', attrType='multiFloat', shapeMode='deformer')
+
+    cmds.makePaintable('LHCurveDeformer', 'translateWeights', attrType='doubleArray', shapeMode='deformer')
+    cmds.makePaintable('LHCurveDeformer', 'lengthWeights', attrType='doubleArray', shapeMode='deformer')
+    cmds.makePaintable('LHCurveDeformer', 'rotationWeights', attrType='doubleArray', shapeMode='deformer')
+    cmds.makePaintable('LHCurveDeformer', 'revolveWeights', attrType='doubleArray', shapeMode='deformer')
+    cmds.makePaintable('LHCurveDeformer', 'scaleWeights', attrType='doubleArray', shapeMode='deformer')
+    cmds.makePaintable('LHCurveDeformer', 'volumeWeights', attrType='doubleArray', shapeMode='deformer')
+    cmds.makePaintable('LHCurveDeformer', 'slideWeights', attrType='doubleArray', shapeMode='deformer')
+
+
+
+def creator():
+    return OpenMayaMPx.asMPxPtr(LHCurveDeformer())
+ 
+
+def initializePlugin(obj):
+    plugin = OpenMayaMPx.MFnPlugin(obj, 'Levi Harrison', '1.0', 'Any')
+    try:
+        plugin.registerNode('LHCurveDeformer', LHCurveDeformer.kPluginNodeId, creator, initialize, OpenMayaMPx.MPxNode.kDeformerNode)
+    except:
+        raise RuntimeError, 'Failed to register node'
+ 
+def uninitializePlugin(obj):
+    plugin = OpenMayaMPx.MFnPlugin(obj)
+    try:
+        plugin.deregisterNode(LHCurveDeformer.kPluginNodeId)
+    except:
+        raise RuntimeError, 'Failed to deregister node'

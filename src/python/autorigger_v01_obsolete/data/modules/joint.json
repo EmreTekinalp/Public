@@ -1,0 +1,43 @@
+{
+    "moduletype": {
+        "data": "joint"
+        },
+    "name": {
+        "data": "joint",
+        "editable": true,
+        "mayachange": true
+        },
+    "description": {
+        "data": "This is an ordinary joint"
+        },
+    "attributes": {
+        "data":{
+            "tx": {
+                "data": 0.0
+                },
+            "ty": {
+                "data": 0.0,
+                "min": 0.0,
+                "max": 20.0
+                },
+            "tz": {
+                "data": 0.0
+                },
+            "side": {
+                "data": "L",
+                "editable": false,
+                "mayachange": true
+                },
+            "inhook": {
+                "data": null
+                },
+            "outhooks": {
+                "data": null
+            }
+        }
+    },
+    "maya_name": {
+        "data": "",
+        "editable": false
+    }
+}

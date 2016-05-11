@@ -1,0 +1,161 @@
+"""
+@package: utility.blueprint
+@brief: Base implementations of the bluePrint class
+@author: Emre Tekinalp
+@contact: etekinalp@rainmaker.com
+"""
+
+import string
+import logging
+import pymel.core as pm
+from maya import cmds
+from olympus.rigging import base
+from olympus.rigging.utility import utils
+from olympus.rigging.fragment import control, node
+reload(base)
+reload(logging)
+reload(control)
+reload(utils)
+reload(node)
+from olympus.rigging.fragment.node import node
+from olympus.rigging.fragment.control import Control
+
+logging.basicConfig(format='', level=logging.DEBUG)
+
+# constants
+parent = None
+
+
+class Blueprint(base.RiggingInterface):
+
+    """Base class of creating blueprints."""
+
+    def __init__(self, name=None, amount=1, size=1, shape=1,
+                 orientation=0, color=None, annotation=True,
+                 positions=None, upaxis='y'):
+        """Initialize BluePrint class."""
+        # args
+        self.parent = parent
+        self.upaxis = upaxis
+
+        # vars
+        node.parent = self.parent
+        control.parent = self.parent
+        self.blueprint_groups = list()
+        self.controls = list()
+        self.positions = list()
+
+        # methods
+        self.create(name=name, amount=amount, size=size, shape=shape,
+                    orientation=orientation, color=color,
+                    annotation=annotation, positions=positions)
+    # end def __init__
+
+    def create(self, name=None, amount=1, size=1, shape=1, orientation=0,
+               color=None, annotation=True, positions=None):
+        """Create and return blueprint class object."""
+        self.positions = list()
+        self.controls = list()
+        pm.parent(self._blueprint_group, self.top_group)
+        positions = self._get_positions(amount, positions)
+        for n in range(amount):
+            control.node.suffix = 'BPR'
+            ctl = Control(name=name, size=size, shape=shape,
+                          orientation=orientation, color=color,
+                          annotation=annotation, gimbal=False)
+            ctl.group.t.set(positions[n])
+            if self.upaxis == 'x':
+                ctl.group.rz.set(90)
+            elif self.upaxis == 'z':
+                ctl.group.rx.set(-90)
+            # end if change up axis
+            ctl.tag('BLUEPRINT')
+            pm.parent(ctl.group, self.blueprint_groups[-1])
+            self.blueprint_groups[-1].annotation >> ctl.transform.label
+            self.positions.append(positions[n])
+            self.controls.append(ctl)
+        # end for iterate number of controls
+    # end def create_control
+
+    def _get_positions(self, amount, position):
+        """Return a list of positions."""
+        if not position:
+            return [[0, pos, 0] for pos in range(amount)]
+        # end if no positions given
+        if len(position) < amount:
+            diff = amount - len(position)
+        elif len(position) > amount:
+            diff = len(position) - amount
+        else:
+            return position
+        # end if given positions is less or more then amount
+        for d in range(diff):
+            pos = [position[-1][0], position[-1][1] + d, position[-1][2]]
+            position.append(pos)
+        # end for iterate difference range
+        return position
+    # end def _get_positions
+
+    def chain(self, reverse=False):
+        """Parent the controls as a fk chain.
+
+        @param reverse <bool> Define the parent direction. Default is False."""
+        if not len(self.controls) > 1:
+            return
+        # end if there is only one control
+        if reverse:
+            self.positions.reverse()
+            for i, ctl in enumerate(self.controls):
+                if self.upaxis == 'x':
+                    ctl.group.rz.set(-90)
+                elif self.upaxis == 'z':
+                    ctl.group.rx.set(90)
+                else:
+                    ctl.group.rx.set(180)
+                # end if change up axis
+                ctl.group.t.set(self.positions[i])
+            # end for revert positions
+        # end if reverse
+        for i, ctl in enumerate(self.controls[1:]):
+            ctl | self.controls[i]
+        # end for iterate controls
+        return self
+    # end def chain
+
+    @property
+    def top_group(self):
+        """Create top group of the blueprint setup."""
+        if not pm.objExists('C_BLUEPRINTS_TRN'):
+            pm.createNode('transform', n='C_BLUEPRINTS_TRN')
+        # end if create top group
+        return pm.PyNode('C_BLUEPRINTS_TRN')
+    # end def top_group
+
+    @property
+    def _blueprint_group(self):
+        """Create blueprint group of the blueprint setup."""
+        self._name = ''
+        if not (pm.objExists('%s_%sBlueprint_GRP' % (self.side, self.name))):
+            node.suffix = 'GRP'
+            grp = node.transform('%sBlueprint' % self.name)
+            grp.addAttr('annotation', at='short', min=0, max=1)
+            grp.annotation.set(cb=True)
+            self.blueprint_groups.append(grp)
+            return grp
+        # end if create blueprint group
+        return pm.PyNode('%s_%sBlueprint_GRP' % (self.side, self.name))
+    # end def blueprint_group
+
+    def __setattr__(self, attr, value):
+        """Override set attribute to store dynamically created attributes."""
+        self.__dict__[attr] = value
+    # end def __setattr__
+
+    def __getattr__(self, attr):
+        """Override get attribute to return dynamic attribute data."""
+        if not attr in self.__dict__.keys():
+            raise ValueError('DropBox: please create attribute %s' % attr)
+        # end if attr not exist
+        return self.__dict__[attr]
+    # end def __getattr__
+# end class Blueprint

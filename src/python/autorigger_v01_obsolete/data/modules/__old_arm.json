@@ -1,0 +1,37 @@
+{
+    "name": "arm",
+    "attributes":{
+        "ik": true,
+        "fk": true
+        },
+        "joints": [
+        {
+            "name": "shoulder",
+            "attributes":{
+                "tx": 0.0,
+                "ty": 0.0,
+                "tz": 0.0,
+                "outhook": ["elbow"]
+            }
+            },
+            {
+                "name": "elbow",
+                "attributes":{
+                    "tx": 50.0,
+                    "ty": 50.0,
+                    "tz": 0.0,
+                    "inhook": ["shoulder"],
+                    "outhook": ["wrist"]
+                }
+                },
+                {
+                    "name": "wrist",
+                    "attributes":{
+                        "tx": 100.0,
+                        "ty": 100.0,
+                        "tz": 0.0,
+                        "inhook": ["elbow"]
+                    }
+                }
+                ]
+            }

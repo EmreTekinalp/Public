@@ -1,0 +1,32 @@
+CONFIGURATION PROPERTIES
+
+General---Target Extension:
+.mll
+
+General---Configuration Type:
+Dynamic Library .dll
+----------------------------------------­---------
+VC++Directories---Include Directories:
+C:\Program Files\Autodesk\Maya2016\include
+
+VC++Directories---Library Directories:
+C:\Program Files\Autodesk\Maya2016\lib
+----------------------------------------­---------
+
+C/C++---General---Aditional Include Directories:
+;C:\Program Files\Autodesk\Maya2016\include
+
+C/C++---Preprocessor---Preprocessor Definitions:
+;WIN32;NDEBUG;_WINDOWS;NT_PLUGIN;REQUIRE­_IOSTREAM
+
+C/C++---Runtime Library---Code Generation:
+Multi-threaded Debug DLL /MDd
+----------------------------------------­---------
+Linker---General---Aditional Library Directories:
+;C:\Program Files\Autodesk\Maya2016\lib
+
+Linker---Input---Additional Dependencies:
+Foundation.lib;OpenMaya.lib;OpenMayaUI.lib;OpenMayaanim.lib;OpenMayaFX.lib;OpenMayaRender.lib;Image.lib
+
+Linker---Additional Options---Command Line;
+/export:initializePlugin /export:uninitializePlugin

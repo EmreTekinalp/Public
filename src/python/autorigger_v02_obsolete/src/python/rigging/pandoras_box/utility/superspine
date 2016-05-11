@@ -1,0 +1,413 @@
+import pymel.core as pm
+from maya import cmds
+from olympus.rigging.component import base
+from olympus.rigging.utility import blueprint, utils
+from olympus.rigging.fragment import control, node
+reload(blueprint)
+reload(control)
+reload(base)
+reload(utils)
+reload(node)
+from olympus.rigging.utility.blueprint import Blueprint
+from olympus.rigging.fragment.control import Control
+from olympus.rigging.fragment.node import node
+
+
+class BipedSpine(base.ComponentInterface):
+
+    """A biped spine component.
+
+    This class is using pymel instead of python as well it is making use of the
+    DropBox class, which should be used to store and retrieve any kind of data.
+    """
+
+    def __init__(self, name=None, side=None, parent=None):
+        """Initialize the BipedSpine.
+
+        @param name <string> specify an additional name.
+        @param side <string> Valid is C, L, R.
+        @param parent <object> specify the parent object.
+        """
+        super(BipedSpine, self).__init__(None, name, parent, side)
+        # vars
+        node.parent = self
+        blueprint.parent = self
+        control.parent = self
+        self.bpr = utils.DropBox()
+        self.rig = utils.DropBox()
+        self.ribbon = utils.DropBox()
+    # end def __init__
+
+    def default_guide_data(self):
+        """Override abstractmethod default guide data."""
+        return 
+    # end def default_guide_data
+
+    def guide_setup(self):
+        """Create spine guides."""
+        self._create_guide_controls()
+    # end def guides
+
+    def _create_guide_controls(self):
+        """Create guide controls."""
+        self.test = Blueprint(size=0.3, amount=7, upaxis='x').controls
+        self.bpr.spine = Blueprint(size=0.3, amount=5, upaxis='x').chain()
+        self.bpr.chest = Blueprint('chest', size=0.5, upaxis='x')
+        pm.parent(self.bpr.chest.controls[0].group,
+                  self.bpr.spine.controls[-1].transform)
+        self.bpr.chest.controls[0].group.t.set(2, 0, 0)
+    # end def _create_guide_controls
+
+    def puppet_setup(self):
+        """Create spine puppet."""
+        # create rig group object
+        self.rig.groups = utils.DropBox()
+        self._create_puppet_controls()
+        self._setup_puppet_controls()
+        self._add_attributes()
+        self._create_ribbon_setup()
+        self._create_volume_setup()
+        self._setup_global_scale()
+        self._delete_guides()
+    # end def puppet_setup
+
+    def _create_puppet_controls(self):
+        """Create spine controls based on the guides."""
+        # cog control
+        self.rig.cog_a = Control('CogA', size=7, shape=16, color=4)
+        self.rig.cog_b = Control('CogB', size=6, shape=16, color=25)
+        # pelvis control
+        self.rig.hips = Control('Hips', size=5, shape=14, color=22,
+                                orientation=7)
+        # chest control
+        self.rig.chest = Control('Chest', size=5, shape=2, color=22)
+        # fk controls
+        self.rig.fk_base = Control('BaseFk', size=3, shape=15, color=14)
+        self.rig.fk_mid = Control('MidFk', size=3, shape=15, color=14)
+        self.rig.fk_top = Control('TopFk', size=3, shape=15, color=14)
+        # ik controls
+        self.rig.ik_base = Control('BaseIk', size=5, shape=10, color=22)
+        self.rig.ik_mid = Control('MidIk', size=0.4, shape=3, color=4,
+                                  offset=[0, 0, -5])
+        self.rig.ik_top = Control('TopIk', size=5, shape=10, color=22)
+    # end def _create_puppet_controls
+
+    def _setup_puppet_controls(self):
+        """Reposition and parent the spine controls."""
+        # create control group
+        self.rig.groups.controls = node.transform('CONTROLS')
+
+        # reposition
+        self.rig.chest.group.t.set(self.bpr.chest.positions[0])
+        self.rig.fk_mid.group.t.set(self.bpr.spine.positions[2])
+        self.rig.fk_top.group.t.set(self.bpr.spine.positions[4])
+        self.rig.ik_mid.group.t.set(self.bpr.spine.positions[2])
+        self.rig.ik_top.group.t.set(self.bpr.spine.positions[4])
+        # parent
+        pm.parent(self.rig.cog_a.group, self.rig.groups.controls)
+        self.rig.cog_b | self.rig.cog_a
+        self.rig.hips + self.rig.fk_base + self.rig.ik_mid | self.rig.cog_b
+        self.rig.fk_top + self.rig.ik_top | self.rig.fk_mid
+        self.rig.fk_mid + self.rig.ik_base | self.rig.fk_base
+        self.rig.chest | self.rig.fk_top
+        # constraints
+        pac = pm.parentConstraint(self.rig.ik_top.gimbal.transform,
+                                  self.rig.fk_top.group, mo=True)
+    # end def _setup_puppet_controls()
+
+    def _add_attributes(self):
+        """Add attributes to all relevant controls."""
+        self.rig.cog_a.transform.addAttr('compressLimit', at='double', k=True)
+        self.rig.cog_a.transform.addAttr('stretchLimit', at='double', k=True)
+        self.rig.cog_a.transform.addAttr('volume', at='double',
+                                         min=0.0, max=1.0, k=True)
+        self.rig.cog_a.transform.addAttr('volumeShift', at='float',
+                                         min=0, max=10, k=True)
+        self.rig.cog_a.transform.addAttr('volumeSize', at='float', k=True)
+        self.rig.cog_a.transform.addAttr('volumeRange', at='float',
+                                         min=0, dv=1, k=True)
+        self.rig.cog_a.transform.addAttr('volumeDropoff', at='float',
+                                         min=-1, max=1, dv=0, k=True)
+        self.rig.cog_a.transform.addAttr('soft', at='double',
+                                         min=0.0, max=5.0, k=True)
+        self.rig.cog_a.transform.addAttr('fkIk', at='short',
+                                         min=0, max=1, k=True)
+        self.rig.cog_a.transform.addAttr('movablePivot', at='short',
+                                         min=0, max=1, k=True)
+        self.rig.cog_a.transform.addAttr('globalScale', at='float',
+                                         dv=1, min=0)
+    # end def _add_attributes()
+
+    def _create_ribbon_setup(self):
+        """Create the ribbon spine based on the guides."""
+        # create ribbon group
+        self.rig.groups.ribbon = node.transform('RIBBON')
+        self.rig.groups.ribbon.v.set(0)
+
+        self._create_ribbon_curves_surfaces()
+        self._create_ribbon_joints()
+        self._setup_ribbon_joints()
+        self._setup_ribbon_skincluster()
+
+        # reparent ribbon setup
+        pm.parent(self.ribbon.spinecurve, self.rig.groups.ribbon)
+        pm.parent(self.ribbon.surface, self.rig.groups.ribbon)
+        pm.parent(self.ribbon.transforms.get(), self.rig.groups.controls)
+    # end def _create_ribbon_setup()
+
+    def _create_ribbon_curves_surfaces(self):
+        """Create ribbon curves and surface."""
+        # ribbon spine curves
+        crv = pm.curve(p=[pos for pos in self.bpr.spine.positions],
+                       n='%s_%sRibbon_CRV' % (self.side, self.name), d=3)
+        crv.listRelatives(ad=True)[0].rename('%sShape' % crv)
+        crv_a = pm.curve(d=1, p=[pos for pos in self.bpr.spine.positions])
+        crv_b = crv_a.duplicate()[0]
+        crv_a.tx.set(-1)
+        crv_b.tx.set(1)
+
+        nrb_name = '%s_%sRibbon_NRB' % (self.side, self.name)
+        loft = pm.loft(crv_a, crv_b, n=nrb_name, ch=False)[0]
+        self.ribbon.surface = pm.rebuildSurface(loft, su=0, sv=0,
+                                                ch=False, kr=0)[0]
+        self.ribbon.spinecurve = crv
+        pm.delete(crv_a, crv_b)
+    # end def _create_ribbon_curves_surfaces
+
+    def _create_ribbon_joints(self):
+        """Create the ribbon joints."""
+        rivets = utils.DropBox()
+        transforms = utils.DropBox()
+        controls = utils.DropBox()
+        joints = utils.DropBox()
+        for n in range(5):
+            trn = node.transform(n)
+            ctl = Control('Joint%s' % n, size=1.25, shape=8, color=14)
+            jnt = node.joint(n)
+            pm.parent(jnt, ctl.gimbal.transform)
+            ctl | trn
+            rvt = node.n_nurbsRivet(n)
+            self.ribbon.surface.worldSpace >> rvt.inSurface
+            rvt.outPosition >> trn.t
+            rvt.outRotation >> trn.r
+            curveshape = self.ribbon.spinecurve.getShape()
+            rvt.outPosition.connect(curveshape.attr('controlPoints[%s]' % n))
+            rvt.parameterU.set(0.5)
+            rvt.parameterV.set(n / 4.0)
+            setattr(rivets, 'spine%s' % n, rvt)
+            setattr(transforms, 'spine%s' % n, trn)
+            setattr(controls, 'spine%s' % n, ctl)
+            setattr(joints, 'spine%s' % n, jnt)
+        # end for iterate range
+
+        self.ribbon.rivets = rivets
+        self.ribbon.transforms = transforms
+        self.ribbon.controls = controls
+        self.ribbon.joints = joints
+        self.ribbon.drivers = self._create_ribbon_drivers()
+    # end def _create_ribbon_joints
+
+    def _create_ribbon_drivers(self):
+        """Create and return ribbon driver object."""
+        drivers = utils.DropBox()
+        # setup driver joints
+        base = node.joint('RibbonBase', radius=2)
+        mid = node.joint('RibbonMid', radius=2)
+        top = node.joint('RibbonTop', radius=2)
+        # set driver transforms
+        mid.t.set(self.bpr.spine.positions[2])
+        top.t.set(self.bpr.spine.positions[4])
+        # dynamically add attributes to driver class object
+        setattr(drivers, 'base', base)
+        setattr(drivers, 'mid', mid)
+        setattr(drivers, 'top', top)
+        return drivers
+    # end def_create_ribbon_drivers
+
+    def _setup_ribbon_joints(self):
+        """Setup the ribbon."""
+        pm.parent(self.ribbon.drivers.base, self.ribbon.drivers.mid,
+                  self.rig.ik_base.gimbal.transform)
+        pm.parent(self.ribbon.drivers.top, self.rig.ik_top.gimbal.transform)
+        pac = pm.parentConstraint(self.ribbon.drivers.base,
+                                  self.ribbon.drivers.top,
+                                  self.ribbon.drivers.mid, mo=True)
+        # set interpolation type to shortest
+        pac.interpType.set(2)
+    # end def _setup_ribbon_joints
+
+    def _setup_ribbon_skincluster(self):
+        """Setup the ribbon skinCluster."""
+        skin = pm.skinCluster(self.ribbon.surface, self.ribbon.drivers.get(),
+                              n='%s_%sRibbon_SKN' % (self.side, self.name))
+        self.ribbon.skincluster = skin
+        self._skinweight_ribbon_surface()
+        self.ribbon.cluster = self._setup_ribbon_cluster()
+    # end def _setup_ribbon_skincluster
+
+    def _skinweight_ribbon_surface(self):
+        """Algorithm to skinweight the ribbon surface."""
+        num_cv_u = self.ribbon.surface.getShape().numCVsInU()
+        num_cv_v = self.ribbon.surface.getShape().numCVsInV()
+
+        for v in range(num_cv_v):
+            for u in range(num_cv_u):
+                cv_uv = '%s.cv[%s][%s]' % (self.ribbon.surface, u, v)
+                if not v:
+                    # skinweight to base 1.0
+                    pm.skinPercent(self.ribbon.skincluster, cv_uv,
+                                   tv=[(self.ribbon.drivers.base, 1.0)])
+                elif v == 1:
+                    # skinweight to base/mid 0.84/0.16
+                    pm.skinPercent(self.ribbon.skincluster, cv_uv,
+                                   tv=[(self.ribbon.drivers.base, 0.84),
+                                       (self.ribbon.drivers.mid, 0.16)])
+                elif v > 1 and v < num_cv_v / 2:
+                    # skinweight to base/mid 0.5/0.5
+                    pm.skinPercent(self.ribbon.skincluster, cv_uv,
+                                   tv=[(self.ribbon.drivers.base, 0.5),
+                                       (self.ribbon.drivers.mid, 0.5)])
+                elif v == num_cv_v / 2:
+                    # skinweight to mid 1.0
+                    pm.skinPercent(self.ribbon.skincluster, cv_uv,
+                                   tv=[(self.ribbon.drivers.mid, 1.0)])
+                elif v > num_cv_v / 2 and v < num_cv_v - 2:
+                    # skinweight to mid/top 0.5/0.5
+                    pm.skinPercent(self.ribbon.skincluster, cv_uv,
+                                   tv=[(self.ribbon.drivers.mid, 0.5),
+                                       (self.ribbon.drivers.top, 0.5)])
+                elif v == num_cv_v - 2:
+                    # skinweight to mid/top 0.84/0.16
+                    pm.skinPercent(self.ribbon.skincluster, cv_uv,
+                                   tv=[(self.ribbon.drivers.mid, 0.16),
+                                       (self.ribbon.drivers.top, 0.84)])
+                elif v == num_cv_v - 1:
+                    # skinweight to top 1.0
+                    pm.skinPercent(self.ribbon.skincluster, cv_uv,
+                                   tv=[(self.ribbon.drivers.top, 1.0)])
+                # end if setup skinweight
+            # end for iterate U cvs
+        # end for iterate V cvs
+    # end def _skinweight_ribbon_surface
+
+    def _setup_ribbon_cluster(self):
+        """Create and setup the ribbon cluster weights."""
+        cluster = pm.cluster(self.ribbon.surface,
+                             wn=[self.rig.ik_mid.transform,
+                                 self.rig.ik_mid.transform],
+                             bindState=True)
+        self.rig.ik_mid.group.worldInverseMatrix >> cluster[0].bindPreMatrix
+
+        # setup cluster weights
+        cvs = pm.ls('%s.cv[*]' % self.ribbon.surface.name(), fl=True)
+        hrange = 4
+        vrange = len(cvs) / hrange
+        for v in range(vrange):
+            for h in range(hrange):
+                clsweight = '%s.wl[0].w[%s]' % (cluster[0], (v + (h * vrange)))
+                if not v:
+                    pm.setAttr(clsweight, 0.0)
+                elif v == 1:
+                    pm.setAttr(clsweight, 0.16)
+                elif v > 1 and v < vrange / 2:
+                    pm.setAttr(clsweight, 0.5)
+                elif v == vrange / 2:
+                    pm.setAttr(clsweight, 1.0)
+                elif v > vrange / 2 and v < vrange - 2:
+                    pm.setAttr(clsweight, 0.5)
+                elif v == vrange - 2:
+                    pm.setAttr(clsweight, 0.16)
+                elif v == vrange - 1:
+                    pm.setAttr(clsweight, 0.0)
+                # end if setup cluster weights
+            # end for iterate height range
+        # end for iterate vertical range
+        return cluster
+    # end def _setup_ribbon_cluster
+
+    def _create_volume_setup(self):
+        """Create the volume setup."""
+        # create volume group
+        self.rig.groups.volume = node.transform('VOLUME')
+        self.rig.groups.volume.v.set(0)
+
+        self._setup_volume_preservation()
+        self._feature_volumeshift()
+    # end def _create_volume_setup
+
+    def _setup_volume_preservation(self):
+        """Setup the volume preservation."""
+        globalscale = self.rig.cog_a.transform.globalScale
+        mdl = node.multDoubleLinear(i1=globalscale,
+                                    i2=pm.arclen(self.ribbon.spinecurve))
+        vp = node.n_volumePreservation(curve=self.ribbon.spinecurve.worldSpace,
+                                       globalScale=1.0, driverType=1,
+                                       iniDistance=mdl.output)
+        self.rig.cog_a.transform.volume >> vp.volume
+        for trn in self.ribbon.transforms.get():
+            mdl = node.multDoubleLinear(i1=vp.output, i2=globalscale)
+            globalscale >> trn.sx
+            mdl.output >> trn.sy
+            mdl.output >> trn.sz
+        # end for iterate rivet transforms
+    # end def _setup_volume_preservation
+
+    def _feature_volumeshift(self):
+        """Create volumeshift feature."""
+        # volume curve
+        vname = '%s_%sVolume_CRV' % (self.side, self.name)
+        self.ribbon.volumecurve = self.ribbon.spinecurve.duplicate(n=vname)[0]
+        pm.rebuildCurve(self.ribbon.volumecurve, ch=False, s=100, d=3)
+
+        sine = pm.nonLinear(self.ribbon.volumecurve, type='sine',
+                            lowBound=0, highBound=1)
+        sine[0].rename('%s_%sVolume_SIN' % (self.side, self.name))
+        sine[1].rename('%s_%sVolumeHandle_SIN' % (self.side, self.name))
+        sine[1].ry.set(-90)
+        mdl = node.multDoubleLinear(input1=sine[1].sy, input2=-1)
+        rmv = node.remapValue(inputValue=self.rig.cog_a.transform.volumeShift,
+                              inputMax=10, outputMin=mdl.output,
+                              outputMax=pm.arclen(self.ribbon.volumecurve))
+        rmv.outValue.connect(sine[1].ty)
+        self.rig.cog_a.transform.volumeRange.connect(sine[1].sy)
+        self.rig.cog_a.transform.volumeSize.connect(sine[0].amplitude)
+        self.rig.cog_a.transform.volumeDropoff.connect(sine[0].dropoff)
+        for n, rivet in enumerate(self.ribbon.rivets.get()):
+            poc = node.pointOnCurveInfo(inputCurve=self.ribbon.volumecurve.ws,
+                                        parameter=rivet.parameterV,
+                                        turnOnPercentage=1)
+            pma = node.plusMinusAverage(input1D=[poc.positionZ, 1])
+            pma.output1D >> getattr(self.ribbon.controls, 'spine%s' % n).group.sy
+            pma.output1D >> getattr(self.ribbon.controls, 'spine%s' % n).group.sz
+        # end for iterate ribbon joints
+
+        # parent volume elements to volume group
+        pm.parent(sine[1], self.rig.groups.volume)
+        pm.parent(self.ribbon.volumecurve, self.rig.groups.volume)
+    # end def _feature_volumeshift
+
+    def _setup_global_scale(self):
+        """Setup global scale attribute and do proper connections."""
+        self.rig.cog_a.transform.globalScale >> self.rig.cog_a.transform.sx
+        self.rig.cog_a.transform.globalScale >> self.rig.cog_a.transform.sy
+        self.rig.cog_a.transform.globalScale >> self.rig.cog_a.transform.sz
+        self.rig.cog_a.transform.sx.set(l=True, k=False)
+        self.rig.cog_a.transform.sy.set(l=True, k=False)
+        self.rig.cog_a.transform.sz.set(l=True, k=False)
+    # end def _setup_global_scale
+
+    def _delete_guides(self):
+        """Delete the guides."""
+        for item in self.bpr.get():
+            pm.delete(item.blueprint_groups)
+            if not item.top_group.listRelatives(c=True):
+                pm.delete(item.top_group)
+            # end if delete top group
+        # end for iterate blueprint objects
+    # end def _delete_guides
+# end class BipedSpine
+
+cmds.file(new=True, f=True)
+spine = BipedSpine()
+spine.guide()
+spine.puppet()

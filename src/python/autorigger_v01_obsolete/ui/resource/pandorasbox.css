@@ -1,0 +1,37 @@
+/*QLabel{
+    background-color: red;
+    border-style: outset;
+    border-width: 2px;
+    border-radius: 10px;
+    border-color: beige;
+    font: bold 14px;
+    min-width: 10em;
+    padding: 6px;
+}
+NodeGraphicsView{
+    background-color: #666;
+    background-image:url("navigator_bg.jpg");
+    background: qlineargradient(x0:0, y0:0, x1:1, y1:0,
+               stop:0 red, stop:0.5 red, stop:1.0 blue, stop:0.501 blue)
+}
+
+QMenu{
+    background-color: transparent;
+    border:0 transparent solid;
+}
+
+QMenu{
+    background-color: transparent;
+    border-style: outset;
+    border-width: 2px;
+    border-radius: 2px;
+    border-color: darkgrey;
+    font: bold 10px;
+    padding: 0px;
+    margin-top:0px;
+}*/
+
+
+/*AttributeView{
+    background-color: #444;
+}*/

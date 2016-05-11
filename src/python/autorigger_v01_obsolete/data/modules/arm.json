@@ -1,0 +1,188 @@
+{
+    "moduletype": {
+        "data": "compound"
+        },
+    "name": {
+        "data": "arm"
+        },
+    "description": {
+        "data": "This is the arm module, it creates a nice arm for you."
+        },
+    "attributes": {
+        "data": {
+            "character": {
+                "data": "dummy",
+                "guide": true
+                },
+            "side": {
+                "data": "L",
+                "guide": true
+                },
+            "suffix": {
+                "data": "GCTL",
+                "guide": true
+                },
+            "size": {
+                "data": 0.75,
+                "guide": true
+                },
+            "shape": {
+                "data": 2,
+                "guide": true
+                },
+            "orientation":{
+                "data": [0,0,0],
+                "guide": true
+                },
+            "color": {
+                "data": 15,
+                "guide": true
+                },
+            "rotation":{
+                "data": [0,0,0],
+                "guide": true
+                },
+            "upVectorOffset": {
+                "data": [0,6,0],
+                "guide": true
+                },
+            "aimVector": {
+                "data": [1,0,0],
+                "guide": true
+                },
+            "rotateOrder":{
+                "data": 3,
+                "guide": true
+                },
+            "flip": {
+                "data": false,
+                "guide": true
+                },
+            "mirrorGuideObj": {
+                "data": null,
+                "guide": true
+                },
+            "clavicleEnable":{
+                "data": true,
+                "guide": true
+                },
+            "scapulaEnable": {
+                "data": false,
+                "guide": true
+                },
+            "guideObj": {
+                "data": null
+                },
+            "puppetObj":{
+                "data": null
+                },
+            "fk":{
+                "data": true
+                },
+            "ik": {
+                "data": false
+                },
+            "ikfk": {
+                "data": "Blend"
+                },
+            "ikStretch":{
+                "data": true
+                },
+            "ikBend":{
+                "data": true
+                },
+            "armTwist": {
+                "data": true
+                },
+            "autoClavicle": {
+                "data": true
+                },
+            "softClavicle":{
+                "data": true
+                },
+            "autoScapula":{
+                "data": true
+                }
+        }
+    },
+    "components": {
+        "data": {
+            "joint1": {
+                "data": {
+                    "moduletype": {
+                        "data": "joint"
+                    },
+                    "name": {
+                        "data": "shoulder"
+                        },
+                    "attributes": {
+                        "data": {
+                            "tx": {
+                                "data": 3
+                                },
+                            "ty": {
+                                "data": 20
+                                },
+                            "outhooks": {
+                                "data": ["elbow"]
+                            }
+                        }
+                    }
+                }
+            },
+            "joint2": {
+                "data": {
+                    "moduletype": {
+                        "data": "joint"
+                    },
+                    "name": {
+                        "data": "elbow"
+                        },
+                    "attributes": {
+                        "data": {
+                            "tx": {
+                                "data": 7
+                                },
+                            "ty": {
+                                "data": 20
+                                },
+                            "inhook": {
+                                "data": "shoulder"
+                                },
+                            "outhooks": {
+                                "data": ["wrist"]
+                            }
+                        }
+                    }
+                }
+            },
+            "joint3": {
+                "data": {
+                    "moduletype": {
+                        "data": "joint"
+                    },
+                    "name": {
+                        "data": "wrist"
+                        },
+                    "attributes": {
+                        "data": {
+                            "tx": {
+                                "data": 11
+                                },
+                            "ty": {
+                                "data": 20
+                                },
+                            "inhook": {
+                                "data": "elbow"
+                                }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+

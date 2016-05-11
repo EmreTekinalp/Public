@@ -1,0 +1,12 @@
+{
+    "moduletype": {
+        "data": "compound"
+        },
+    "name": {
+        "data": "compound object",
+        "editable": true
+        },
+    "description": {
+        "data": "This is an compound object"
+        }
+}
