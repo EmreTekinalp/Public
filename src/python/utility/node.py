@@ -13,7 +13,7 @@ import string
 import pymel.core as pm
 from maya import cmds
 from utility import abbreviation
-from pandoras_box.core import base
+from tool.pandoras_box.core import base
 
 reload(base)
 reload(logging)
