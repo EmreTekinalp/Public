@@ -1,0 +1,233 @@
+"""
+@package: utility.control
+@brief: Base implementations of the control class
+@author: Emre Tekinalp
+@contact: etekinalp@rainmaker.com
+"""
+
+import pymel.core as pm
+from olympus.rigging.utility import utils
+from olympus.rigging.fragment import base, node
+reload(base)
+reload(utils)
+reload(node)
+from olympus.rigging.fragment.node import node
+
+# constants
+parent = None
+
+
+class Control(base.Fragment):
+
+    """Control class inheriting BaseInterface which returns a control object.
+
+    @requires import pymel.core as pm
+              from olympus.rigging.utility import utils
+              n_rigtool.so plugin to create n_locators
+
+    @usage from olympus.rigging.fragment.control import Control
+           Control(self, 'spine', shape=4, size=3)
+    """
+
+    def __init__(self, name=None, size=1, shape=1, orientation=0,
+                 offset=[0, 0, 0], color=None, gimbal=True, annotation=True):
+        """Initialize Control class.
+
+        @DONE check if args[0] is class object!"""
+        self.parent = parent
+
+        # vars
+        node.parent = self.parent
+        self.shape = None
+        self.transform = None
+        self.group = None
+        self.gimbal = None
+        self.buffer = list()
+        self.control_type = 'n_locator'
+        self._storage = list()
+
+        # methods
+        self.create(name=name, size=size, shape=shape, orientation=orientation,
+                    offset=offset, color=color, gimbal=gimbal,
+                    annotation=annotation)
+    # end def __init__
+
+    def create(self, name=None, size=1, shape=1, orientation=0,
+               offset=[0, 0, 0], color=None, gimbal=True, annotation=True):
+        """Create a control object."""
+        if self.control_type == 'n_locator':
+            self._n_locator(name=name, size=size, shape=shape,
+                            orientation=orientation, offset=offset,
+                            color=color, gimbal=gimbal, annotation=annotation)
+        # end if create n_locator control
+    # end def create
+
+    def _n_locator(self, name=None, size=1, shape=1, orientation=0,
+                   offset=[0, 0, 0], color=None, gimbal=True, annotation=True):
+        """Create and return a n_locator based control shape."""
+        self.shape = node.n_locator(name, size=size, drawStyle=shape,
+                                    orientation=orientation,
+                                    localPosition=offset)
+        node.suffix = 'GRP'
+        self.group = node.transform(name)
+        self.transform = self.shape.listRelatives(p=True)[0]
+
+        if gimbal:
+            self.gimbal = utils.DropBox()
+            gimbalname = 'Gimbal'
+            if name:
+                gimbalname = '%sGimbal' % name
+            # end if
+            self.gimbal.shape = node.n_locator(gimbalname, size=size * 0.75)
+            self.gimbal.transform = pm.listRelatives(self.gimbal.shape,
+                                                     p=True)[0]
+            pm.parent(self.gimbal.transform, self.transform)
+            self.transform.addAttr('unleashGimbal', at='short', min=0, max=1)
+            self.transform.attr('unleashGimbal').set(cb=True)
+            self.transform.attr('unleashGimbal') >> self.gimbal.shape.v
+        # end if gimbal
+
+        pm.parent(self.transform, self.group)
+        self.shape.ove.set(1)
+        if not self.shape.ovc.get():
+            if not color:
+                self.shape.ovc.set(self._get_color())
+            else:
+                self.shape.ovc.set(color)
+            # end if no color given
+        # end if no color specified
+        if annotation:
+            self._annotation(self.transform)
+        # end if annotation given
+    # end def _n_locator
+
+    def _get_color(self):
+        """Based on the given side return the proper maya color."""
+        if self.side in ['C', 'c', 'Center', 'center']:
+            return 17
+        elif self.side in ['L', 'l', 'Left', 'left']:
+            return 6
+        elif self.side in ['R', 'r', 'Right', 'right']:
+            return 13
+        # end if return maya color value
+    # end def _get_color
+
+    def _annotation(self, name):
+        """Implement annotation shape and merge with control shape."""
+        self.transform.addAttr('label', at='short', min=0, max=1, dv=0)
+        if self.gimbal:
+            ano = pm.annotate(self.gimbal.transform, text=name)
+        else:
+            ano = pm.annotate(self.transform, text=name)
+        # end if gimbal is given
+        trn = ano.listRelatives(p=True)[0]
+        if '_' in name:
+            splitname = '%s' % (name.split('_')[1])
+            ano.rename('%s_%s_ANOShape' % (self.side, splitname))
+            trn.rename(ano.replace('ANOShape', 'ANO'))
+        # end if proper naming convention
+        ano.ove.set(1)
+        ano.ovdt.set(2)
+        trn.tz.set(self.shape.size.get() * 2)
+        if self.gimbal:
+            pm.parent(trn, self.gimbal.transform)
+        else:
+            pm.parent(trn, self.transform)
+        # end if parent anno transform under control
+        self.transform.label >> ano.v
+    # end def _annotation
+
+    def add_buffer(self, name=None):
+        """Add a buffer transform inbetween the transform and the group."""
+        if not self.transform:
+           return
+        # end if no transform
+        index = 0
+        if self.buffer:
+            index = len(self.buffer)
+        # end if buffer list
+        if name is None:
+            name = '%sBuffer%s' % (self._name, index)
+        # end if no name given
+        buffer = node.transform(name)
+        buffer.t.set(self.transform.getTranslation('world'))
+        buffer.r.set(self.transform.getRotation('world'))
+        pm.parent(self.transform, buffer)
+        pm.parent(buffer, self.group)
+        if self.buffer:
+            pm.parent(buffer, self.buffer[-1])
+        # end if buffer
+        self.buffer.append(buffer)
+        setattr(self, 'buffer%s' % index, buffer)
+    # end def add_buffer
+
+    def tag(self, tag):
+        """Add a boolean attribute to the transform of the control."""
+        if not pm.objExists('%s.%s' % (self.transform, tag)):
+            self.transform.addAttr(tag, at='bool', dv=1)
+            self.transform.attr(tag).lock()
+        # end if tag not exists
+    # end def tag
+
+    def position(self, space='world'):
+        """Return worldSpace position values."""
+        return self.transform.getTranslation(space)
+    # end def position
+
+    def rotation(self, space='world'):
+        """Return worldSpace rotation values."""
+        return self.transform.getRotation(space)
+    # end def rotation
+
+    def __add__(self, other):
+        """Override + operator so it is useful in usage with lshift, rshift."""
+        self._storage += [self, other]
+        return self
+    # end def __add__
+
+    def __or__(self, other):
+        """Override | operator so we can parent the group under the object.
+
+        @DONE Do a type check of the other object and make it more versatile
+        """
+        if not self._storage:
+            if isinstance(other, self.__class__):
+                if other.gimbal:
+                    pm.parent(self.group, other.gimbal.transform)
+                else:
+                    pm.parent(self.group, other.transform)
+                # end if gimbal is given
+            else:
+                pm.parent(self.group, other)
+            # end if other is control class object
+            return
+        # end if
+        for value in set(self._storage):
+            if not value:
+                continue
+            # end if no value given
+            if isinstance(value, self.__class__):
+                if isinstance(other, self.__class__):
+                    if other.gimbal:
+                        pm.parent(value.group, other.gimbal.transform)
+                    else:
+                        pm.parent(value.group, other.transform)
+                    # end if gimbal is given
+                else:
+                    pm.parent(value.group, other)
+                # end if other object / non object
+            else:
+                if isinstance(other, self.__class__):
+                    if other.gimbal:
+                        pm.parent(value, other.gimbal.transform)
+                    else:
+                        pm.parent(value, other.transform)
+                    # end if gimbal is given
+                else:
+                    pm.parent(value, other)
+                # end if other object / non object
+            # end if value object/ non object
+        # end for iterate singleton class
+        self._storage = []
+    # end def __or__
+# end class Control
